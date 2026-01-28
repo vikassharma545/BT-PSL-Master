@@ -1,0 +1,4 @@
+*.parquet
+PSL Master - NSE&BSE/backend_files/*
+PSL Master - MCX/backend_files/*
+PSL Weekly Master - NSE&BSE/backend_files/*

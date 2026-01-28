@@ -1,0 +1,16 @@
+code,index,from_dte,to_dte,entry_time,exit_time,last_trade_time,trade_interval,orderside,method,sl,intra_sl,om,fixed_or_dynamic,normal_or_cut,synthetic_future,dte1re,dte2re,dte3re,dte4re,dte5re
+SREW_RANGE_1,NIFTY,5,1,09:30:00,15:29:00,15:00:00,30min,sell,HL,90,140,0.5SD,Dynamic,Normal,TRUE,1,1,1,0,0
+SREW_RANGE_2,NIFTY,4,1,09:30:00,15:29:00,15:00:00,30min,sell,HL,90,140,0.5SD,Dynamic,Normal,TRUE,1,1,1,0,0
+SREW_RANGE_3,NIFTY,3,1,09:30:00,15:29:00,15:00:00,30min,sell,HL,90,140,0.5SD,Dynamic,Normal,TRUE,1,1,1,0,0
+SREW_RANGE_1,SENSEX,5,1,09:30:00,15:29:00,15:00:00,30min,sell,HL,90,140,0.5SD,Dynamic,Normal,TRUE,1,1,1,0,0
+SREW_RANGE_2,SENSEX,4,1,09:30:00,15:29:00,15:00:00,30min,sell,HL,90,140,0.5SD,Dynamic,Normal,TRUE,1,1,1,0,0
+SREW_RANGE_3,SENSEX,3,1,09:30:00,15:29:00,15:00:00,30min,sell,HL,90,140,0.5SD,Dynamic,Normal,TRUE,1,1,1,0,0
+SREW_RANGE_1,BANKNIFTY,5,1,09:30:00,15:29:00,15:00:00,30min,sell,HL,90,140,0.5SD,Dynamic,Normal,TRUE,1,1,1,0,0
+SREW_RANGE_2,BANKNIFTY,4,1,09:30:00,15:29:00,15:00:00,30min,sell,HL,90,140,0.5SD,Dynamic,Normal,TRUE,1,1,1,0,0
+SREW_RANGE_3,BANKNIFTY,3,1,09:30:00,15:29:00,15:00:00,30min,sell,HL,90,140,0.5SD,Dynamic,Normal,TRUE,1,1,1,0,0
+SREW_RANGE_1,FINNIFTY,5,1,09:30:00,15:29:00,15:00:00,30min,sell,HL,90,140,0.5SD,Dynamic,Normal,TRUE,1,1,1,0,0
+SREW_RANGE_2,FINNIFTY,4,1,09:30:00,15:29:00,15:00:00,30min,sell,HL,90,140,0.5SD,Dynamic,Normal,TRUE,1,1,1,0,0
+SREW_RANGE_3,FINNIFTY,3,1,09:30:00,15:29:00,15:00:00,30min,sell,HL,90,140,0.5SD,Dynamic,Normal,TRUE,1,1,1,0,0
+SREW_RANGE_1,MIDCPNIFTY,5,1,09:30:00,15:29:00,15:00:00,30min,sell,HL,90,140,0.5SD,Dynamic,Normal,TRUE,1,1,1,0,0
+SREW_RANGE_2,MIDCPNIFTY,4,1,09:30:00,15:29:00,15:00:00,30min,sell,HL,90,140,0.5SD,Dynamic,Normal,TRUE,1,1,1,0,0
+SREW_RANGE_3,MIDCPNIFTY,3,1,09:30:00,15:29:00,15:00:00,30min,sell,HL,90,140,0.5SD,Dynamic,Normal,TRUE,1,1,1,0,0

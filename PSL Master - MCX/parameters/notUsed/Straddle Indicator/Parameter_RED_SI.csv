@@ -1,0 +1,13 @@
+code,index,dte,entry_time,exit_time,last_trade_time,trade_interval,orderside,method,decay,sl,om,re_entries,std_indicator,indicator_buffer,buffer_minute
+RED_SI_1,NIFTY,1,09:26:00,15:28:00,10:00:00,2min,sell,HL,20,10,0.4,3,low,-0.1,375
+RED_SI_1,SENSEX,1,09:26:00,15:28:00,10:00:00,2min,sell,HL,20,10,0.4,3,low,-0.1,375
+RED_SI_2,NIFTY,1,09:26:00,15:28:00,10:00:00,2min,sell,HL,20,15,0.4,3,low,-0.1,375
+RED_SI_2,SENSEX,1,09:26:00,15:28:00,10:00:00,2min,sell,HL,20,15,0.4,3,low,-0.1,375
+RED_SI_3,NIFTY,1,09:26:00,15:28:00,10:00:00,2min,sell,HL,20,20,0.4,3,low,-0.1,375
+RED_SI_3,SENSEX,1,09:26:00,15:28:00,10:00:00,2min,sell,HL,20,20,0.4,3,low,-0.1,375
+RED_SI_1,NIFTY,2,09:26:00,15:25:00,10:00:00,2min,sell,HL,20,10,0.4,2,low,-0.1,375
+RED_SI_1,SENSEX,2,09:26:00,15:25:00,10:00:00,2min,sell,HL,20,10,0.4,2,low,-0.1,375
+RED_SI_2,NIFTY,2,09:26:00,15:25:00,10:00:00,2min,sell,HL,20,15,0.4,2,low,-0.1,375
+RED_SI_2,SENSEX,2,09:26:00,15:25:00,10:00:00,2min,sell,HL,20,15,0.4,2,low,-0.1,375
+RED_SI_3,NIFTY,2,09:26:00,15:25:00,10:00:00,2min,sell,HL,20,20,0.4,2,low,-0.1,375
+RED_SI_3,SENSEX,2,09:26:00,15:25:00,10:00:00,2min,sell,HL,20,20,0.4,2,low,-0.1,375

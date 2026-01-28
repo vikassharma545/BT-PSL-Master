@@ -1,0 +1,7 @@
+code,index,dte,entry_time,exit_time,last_trade_time,trade_interval,orderside,sl,om,re_entries
+SRE_Late_Evening_1,NIFTY,1,13:00:00,15:27:00,13:10:00,1min,sell,50,0.1,2
+SRE_Late_Evening_2,NIFTY,1,13:00:00,15:27:00,13:10:00,1min,sell,75,0.1,1
+SRE_Late_Evening_3,NIFTY,1,13:00:00,15:27:00,13:10:00,1min,sell,100,0.1,1
+SRE_Late_Evening_1,SENSEX,1,13:00:00,15:27:00,13:10:00,1min,sell,50,0.1,2
+SRE_Late_Evening_2,SENSEX,1,13:00:00,15:27:00,13:10:00,1min,sell,75,0.1,1
+SRE_Late_Evening_3,SENSEX,1,13:00:00,15:27:00,13:10:00,1min,sell,100,0.1,1

@@ -1,0 +1,13 @@
+code,index,dte,entry_time,exit_time,last_trade_time,trade_interval,orderside,method,sl,om,re_entries,std_indicator,indicator_buffer,buffer_minute
+NRE_SI_1,NIFTY,1,09:21:00,15:28:00,10:00:00,2min,sell,HL,10,0.3,3,low,-0.1,375
+NRE_SI_1,SENSEX,1,09:21:00,15:28:00,10:00:00,2min,sell,HL,10,0.3,3,low,-0.1,375
+NRE_SI_2,NIFTY,1,09:21:00,15:28:00,10:00:00,2min,sell,HL,15,0.3,3,low,-0.1,375
+NRE_SI_2,SENSEX,1,09:21:00,15:28:00,10:00:00,2min,sell,HL,15,0.3,3,low,-0.1,375
+NRE_SI_3,NIFTY,1,09:21:00,15:28:00,10:00:00,2min,sell,HL,20,0.3,3,low,-0.1,375
+NRE_SI_3,SENSEX,1,09:21:00,15:28:00,10:00:00,2min,sell,HL,20,0.3,3,low,-0.1,375
+NRE_SI_1,NIFTY,2,09:21:00,15:25:00,10:00:00,2min,sell,HL,10,0.3,1,low,-0.1,375
+NRE_SI_1,SENSEX,2,09:21:00,15:25:00,10:00:00,2min,sell,HL,10,0.3,1,low,-0.1,375
+NRE_SI_2,NIFTY,2,09:21:00,15:25:00,10:00:00,2min,sell,HL,15,0.3,1,low,-0.1,375
+NRE_SI_2,SENSEX,2,09:21:00,15:25:00,10:00:00,2min,sell,HL,15,0.3,1,low,-0.1,375
+NRE_SI_3,NIFTY,2,09:21:00,15:25:00,10:00:00,2min,sell,HL,20,0.3,1,low,-0.1,375
+NRE_SI_3,SENSEX,2,09:21:00,15:25:00,10:00:00,2min,sell,HL,20,0.3,1,low,-0.1,375

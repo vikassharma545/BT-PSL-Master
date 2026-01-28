@@ -1,0 +1,13 @@
+code,index,dte,entry_time,exit_time,last_trade_time,trade_interval,orderside,sl,intra_sl,om,ut_orderside,ut_method,ut_sl,ut_om,std_indicator,indicator_buffer,buffer_minute
+SUT_SI_1,NIFTY,1,09:25:00,15:28:00,11:00:00,4min,sell,5,sl+10,0.15,sell,HL,40,0.3,low,-0.1,375
+SUT_SI_1,SENSEX,1,09:25:00,15:28:00,11:00:00,4min,sell,5,sl+10,0.15,sell,HL,40,0.3,low,-0.1,375
+SUT_SI_2,NIFTY,1,09:25:00,15:28:00,11:00:00,4min,sell,7.5,sl+10,0.15,sell,HL,40,0.3,low,-0.1,375
+SUT_SI_2,SENSEX,1,09:25:00,15:28:00,11:00:00,4min,sell,7.5,sl+10,0.15,sell,HL,40,0.3,low,-0.1,375
+SUT_SI_3,NIFTY,1,09:25:00,15:28:00,11:00:00,4min,sell,10,sl+10,0.15,sell,HL,40,0.3,low,-0.1,375
+SUT_SI_3,SENSEX,1,09:25:00,15:28:00,11:00:00,4min,sell,10,sl+10,0.15,sell,HL,40,0.3,low,-0.1,375
+SUT_SI_1,NIFTY,2,09:25:00,15:25:00,11:00:00,4min,sell,5,sl+10,0.15,sell,HL,40,0.3,low,-0.1,375
+SUT_SI_1,SENSEX,2,09:25:00,15:25:00,11:00:00,4min,sell,5,sl+10,0.15,sell,HL,40,0.3,low,-0.1,375
+SUT_SI_2,NIFTY,2,09:25:00,15:25:00,11:00:00,4min,sell,7.5,sl+10,0.15,sell,HL,40,0.3,low,-0.1,375
+SUT_SI_2,SENSEX,2,09:25:00,15:25:00,11:00:00,4min,sell,7.5,sl+10,0.15,sell,HL,40,0.3,low,-0.1,375
+SUT_SI_3,NIFTY,2,09:25:00,15:25:00,11:00:00,4min,sell,10,sl+10,0.15,sell,HL,40,0.3,low,-0.1,375
+SUT_SI_3,SENSEX,2,09:25:00,15:25:00,11:00:00,4min,sell,10,sl+10,0.15,sell,HL,40,0.3,low,-0.1,375
