@@ -68,6 +68,8 @@ for index in indices:
 
                 df = dd.read_parquet(output_files, columns=columns)
                 df = df.compute()
+                df = df.groupby(['Date', 'Day', 'DTE'], as_index=False).sum(numeric_only=True)
+                
                 df['SPM'] = fund / df['MMPS']
                 df[time_columns] = df[time_columns].mul(df['SPM'], axis=0)
                 stop_times = df[time_columns].apply(lambda row: check_stoploss(row, positive_stoploss_amount, negative_stoploss_amount), axis=1)

@@ -2,6 +2,7 @@ print('Create Parameter')
 import pandas as pd
 from glob import glob
 code_df = pd.concat([pd.read_csv(p, usecols=['code', 'index', 'from_dte','to_dte']) for p in glob('parameters/*.csv')])
+code_df.drop_duplicates(inplace=True)
 code_df.columns = ['Strategy', 'Index', 'from_dte','to_dte']
 code_df.insert(4, column='Fund', value=0)
 code_df.insert(5, column='PositivePSL', value=1)
