@@ -10,12 +10,14 @@ def check_stoploss(row, positive, negative):
     mask = (row > positive) | (row < negative)
     return mask.idxmax() if mask.any() else mask.index[-1]
 
-pickle_path = 'P:/PGC Data/PICKLE/'
-mpickle_path = f"P:/PGC Data/MPICKLE/"
+import json
+with open('config.json', 'r') as file:
+    config = json.load(file)
+    
+pickle_path = config['pickle_path']
 master_parameter = pd.read_csv("MasterParemeter.csv", index_col=[0, 1, 2, 3])
 master_parameter = master_parameter.sort_index()
 dte_file = pd.read_csv(f"{pickle_path}DTE.csv", parse_dates=['Date'], dayfirst=True).set_index("Date")
-mdte_file = pd.read_csv(f"{mpickle_path}DTE.csv", parse_dates=['Date'], dayfirst=True).set_index("Date")
 meta_data_parameter = pd.read_csv('Parameter_MetaData.csv', index_col=[0, 1, 2], parse_dates=['from_date', 'to_date'], dayfirst=True)
 
 param_files = glob('parameters/*.csv')
@@ -141,12 +143,7 @@ master_df['Day'] = master_df['Date'].apply(lambda x: x.strftime('%A'))
 
 idx_col = ['Date', 'Day']
 for index in indices:
-    
-    if index not in ["NIFTY", "SENSEX"]:
-        master_df[f'{prefix_from_index.get(index, index)} DTE'] = mdte_file.loc[master_df['Date'], index].values
-    else:
-        master_df[f'{prefix_from_index.get(index, index)} DTE'] = dte_file.loc[master_df['Date'], index].values
-        
+    master_df[f'{prefix_from_index.get(index, index)} DTE'] = dte_file.loc[master_df['Date'], index].values  
     idx_col.append(f'{prefix_from_index.get(index, index)} DTE')
 
 master_df.fillna(0, inplace=True)

@@ -1,5 +1,10 @@
+import json
+with open('../config.json', 'r') as file:
+    config = json.load(file)
+    
+pickle_path = config['pickle_path']
+
 code = 'B120'
-pickle_path = 'P:/PGC Data/PICKLE/'
 parameter_path = f'../parameters/Parameter_{code}.csv'
 meta_data_path = f"../Parameter_MetaData.csv"
 

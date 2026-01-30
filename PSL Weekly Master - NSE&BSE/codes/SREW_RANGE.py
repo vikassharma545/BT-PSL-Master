@@ -1,6 +1,10 @@
+import json
+with open('../config.json', 'r') as file:
+    config = json.load(file)
+    
+pickle_path = config['pickle_path']
+
 code = 'SREW_RANGE'
-ipickle_path = 'P:/PGC Data/PICKLE/'
-mpickle_path = 'P:/PGC Data/MPICKLE/'
 parameter_path = f'../parameters/Parameter_{code}.csv'
 meta_data_path = f"../Parameter_MetaData.csv"
 
@@ -154,12 +158,6 @@ for tcode in codes:
 
             try:
                 meta_row = meta_data.iloc[row_idx]
-                index = meta_row['index']
-                if index not in ['NIFTY', "SENSEX"]:
-                    pickle_path = mpickle_path
-                else:
-                    pickle_path = ipickle_path
-                
                 index, from_dte, to_dte, from_date, to_date, start_time, end_time, week_lists = get_meta_row_data(meta_row, pickle_path, weekly=True)
                 notinal_value = meta_row['Nv']
                 dte_file = get_dte_file(pickle_path)

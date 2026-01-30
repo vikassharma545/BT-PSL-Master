@@ -11,7 +11,11 @@ def check_stoploss(row, positive, negative):
     mask = (row > positive) | (row < negative)
     return mask.idxmax() if mask.any() else mask.index[-1]
 
-pickle_path = 'P:/PGC Data/MCXPICKLE/'
+import json
+with open('config.json', 'r') as file:
+    config = json.load(file)
+    
+pickle_path = config['pickle_path']
 master_parameter = pd.read_csv("MasterParemeter.csv", index_col=[0, 1, 2])
 master_parameter = master_parameter.sort_index()
 dte_file = pd.read_csv(f"{pickle_path}DTE.csv", parse_dates=['Date'], dayfirst=True).set_index("Date")

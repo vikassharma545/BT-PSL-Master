@@ -30,7 +30,12 @@ def cell_name(row=None, col=None):
     else:
         return col_name, row+1
 
-pickle_path = 'P:/PGC Data/PICKLE/'
+import json
+with open('config.json', 'r') as file:
+    config = json.load(file)
+    
+pickle_path = config['pickle_path']
+
 master_parameter = pd.read_csv("MasterParemeter.csv", index_col=[0, 1, 2])
 dte_file = pd.read_csv(f"{pickle_path}DTE.csv", parse_dates=['Date'], dayfirst=True).set_index("Date")
 meta_data_parameter = pd.read_csv('Parameter_MetaData.csv', index_col=[0, 1], parse_dates=['from_date', 'to_date'], dayfirst=True)
@@ -40,7 +45,6 @@ indices = sorted(pd.concat([pd.read_csv(p, usecols=['index', 'code', 'dte']) for
 iCount = len(indices)
 index_from_prefix = {'BN': 'BANKNIFTY', 'NF': 'NIFTY', 'FN': 'FINNIFTY', 'MCN': 'MIDCPNIFTY', 'SX': 'SENSEX', 'BX': 'BANKEX'}
 prefix_from_index = {'BANKNIFTY': 'BN', 'NIFTY': 'NF', 'FINNIFTY': 'FN', 'MIDCPNIFTY': 'MCN', 'SENSEX': 'SX', 'BANKEX': 'BX'}
-spots_tokens = { "BANKNIFTY":260105, "NIFTY":256265, "FINNIFTY":257801, "MIDCPNIFTY":288009, "SENSEX":265, "BANKEX":274441, "INDIA VIX":264969}
 
 master_df = pd.read_excel('CombinePSL.xlsx')
 master_df['Date'] = pd.to_datetime(master_df['Date'], dayfirst=False).dt.date
