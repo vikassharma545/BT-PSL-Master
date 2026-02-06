@@ -2,6 +2,7 @@ print('Combine Master...')
 import os
 import shutil
 import datetime
+import numpy as np
 import pandas as pd
 from glob import glob
 from natsort import natsorted
@@ -110,8 +111,8 @@ for index in indices:
         time_columns += [f"{i} {t}" for t in tcolumns]
 
     if indices_code_dfs:
-        index_df = sum([df for code, df in indices_code_dfs.items()])
-        index_df.fillna(0, inplace=True)
+        index_df = sum([df.reindex(columns=time_columns, fill_value=0) for code, df in indices_code_dfs.items()])
+        index_df = index_df.replace(0, np.nan).ffill(axis=1).fillna(0)
 
         fund = float(master_parameter.loc[(index, index, -1, -1), 'Fund'])
         positive_stoploss = float(master_parameter.loc[(index, index, -1, -1), 'PositivePSL'])
@@ -123,6 +124,9 @@ for index in indices:
         stop_times = index_df[time_columns].apply(lambda row: check_stoploss(row, positive_stoploss_amount, negative_stoploss_amount), axis=1)
 
         for code, df in indices_code_dfs.items():
+            df = df.reindex(columns=time_columns, fill_value=0)
+            df = df.replace(0, np.nan).ffill(axis=1).fillna(0)
+            
             for idx, time in enumerate(stop_times):
                 if time == f"{min_dte} 15:29:00": continue
                 df.iloc[idx, df.columns.get_loc(time) + 1:] = df.iat[idx, df.columns.get_loc(time) + 1]

@@ -68,6 +68,8 @@ for index in indices:
 
                 df = dd.read_parquet(output_files, columns=columns)
                 df = df.compute()
+                df[['MMPS'] + time_columns] = df[['MMPS'] + time_columns].astype(float)
+                df = df.copy()
                 df = df.groupby(['Date', 'Day', 'DTE'], as_index=False).sum(numeric_only=True)
                 
                 df['SPM'] = fund / df['MMPS']
