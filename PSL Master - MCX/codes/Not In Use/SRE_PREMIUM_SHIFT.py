@@ -8,7 +8,10 @@ code = 'SRE_PREMIUM_SHIFT'
 parameter_path = f'../parameters/Parameter_{code}.csv'
 meta_data_path = f"../Parameter_MetaData.csv"
 
+import os
 import shutil
+import tempfile
+from filelock import FileLock
 from pgcbacktest.BtParameters import *
 from pgcbacktest.BacktestOptions import *
 
@@ -211,7 +214,6 @@ codes = list(parameter['code'].unique())
 for tcode in codes:
 
     output_csv_path = f'../backend_files/codes_output/{tcode}_output/'
-    shutil.rmtree(output_csv_path, ignore_errors=True)
     os.makedirs(output_csv_path, exist_ok=True)
 
     for row_idx in range(len(meta_data)):
@@ -236,7 +238,23 @@ for tcode in codes:
                 for current_date in date_lists:
 
                     file_name = f"{index} {current_date.date()} {tcode}"
-                    if not is_file_exists(output_csv_path, file_name, parameter_len):
+                    
+                    if is_file_exists(output_csv_path, file_name, parameter_len):
+                        continue 
+
+                    temp_dir = tempfile.gettempdir()
+                    lock_path = os.path.join(temp_dir, f"{file_name}.lock")
+
+                    try:
+                        lock = FileLock(lock_path, timeout=0)
+                        lock.acquire()
+                    except Exception:
+                        continue
+                    
+                    try:
+                        # Double-check after acquiring the lock (prevents race conditions)
+                        if is_file_exists(output_csv_path, file_name, parameter_len):
+                            continue
 
                         t1 = datetime.datetime.now()
                         print(f"Row-{row_idx} | File-{file_name} | Total-{parameter_len}")
@@ -255,5 +273,13 @@ for tcode in codes:
 
                         t2 = datetime.datetime.now()
                         print(t2-t1)
+                        
+                    finally:
+                        lock.release()
+                        try:
+                            os.remove(lock_path)
+                        except OSError:
+                            pass
+                        
             except Exception as e:
                 input(str(e))

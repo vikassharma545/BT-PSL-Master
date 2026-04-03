@@ -7,6 +7,9 @@ from glob import glob
 import dask.dataframe as dd
 from natsort import natsorted
 
+NSE_BSE_INDICES = ['NIFTY', 'BANKNIFTY', 'FINNIFTY', 'MIDCPNIFTY'] + ['BANKEX', 'SENSEX']
+MCX_INDICES = ['CRUDEOIL', 'CRUDEOILM', 'NATGASMINI', 'NATURALGAS', 'COPPER', 'SILVER', 'GOLD', 'SILVERM', 'GOLDM', 'ZINC']
+
 def check_stoploss(row, positive, negative):
     mask = (row > positive) | (row < negative)
     return mask.idxmax() if mask.any() else mask.index[-1]
@@ -34,7 +37,14 @@ os.makedirs(sl_times_outputs, exist_ok=True)
 os.makedirs(modified_outputs, exist_ok=True)
 
 columns = ['Date', 'Day', 'DTE', 'MMPS']
-time_columns = list(map(str, pd.date_range(datetime.datetime.combine(datetime.datetime.now(), datetime.time(9)), datetime.datetime.combine(datetime.datetime.now(), datetime.time(23,30)), freq='1min').time))
+
+if all(index in NSE_BSE_INDICES for index in indices):
+    time_columns = list(map(str, pd.date_range(datetime.datetime.combine(datetime.datetime.now(), datetime.time(9,15)), datetime.datetime.combine(datetime.datetime.now(), datetime.time(15,29)), freq='1min').time))
+elif all(index in MCX_INDICES for index in indices):
+    time_columns = list(map(str, pd.date_range(datetime.datetime.combine(datetime.datetime.now(), datetime.time(9)), datetime.datetime.combine(datetime.datetime.now(), datetime.time(23,30)), freq='1min').time))
+else:
+    input("Unknown indices", indices)
+
 columns += time_columns
 
 min_from_date, max_to_date = meta_data_parameter['from_date'].min(), meta_data_parameter['to_date'].max()
@@ -77,7 +87,13 @@ for index in indices:
                 stop_times = df[time_columns].apply(lambda row: check_stoploss(row, positive_stoploss_amount, negative_stoploss_amount), axis=1)
 
                 for idx, time in enumerate(stop_times):
-                    if time == '23:30:00': continue
+
+                    if all(index in NSE_BSE_INDICES for index in indices) and (time == '15:29:00'):
+                        continue
+
+                    if all(index in MCX_INDICES for index in indices) and (time == '23:30:00'):
+                        continue
+
                     df.iloc[idx, df.columns.get_loc(time) + 1:] = df.iat[idx, df.columns.get_loc(time) + 1]
 
                 df = df[['Date'] + time_columns]
@@ -110,11 +126,22 @@ for index in indices:
 
         for code, df in indices_code_dfs.items():
             for idx, time in enumerate(stop_times):
-                if time == '23:30:00': continue
+
+                if all(index in NSE_BSE_INDICES for index in indices) and (time == '15:29:00'):
+                    continue
+
+                if all(index in MCX_INDICES for index in indices) and (time == '23:30:00'):
+                    continue
+
                 df.iloc[idx, df.columns.get_loc(time) + 1:] = df.iat[idx, df.columns.get_loc(time) + 1]
 
             df.to_csv(f"{modified_outputs}/{index} {code}.csv")
-            df = df[['23:30:00']]
+
+            if all(index in NSE_BSE_INDICES for index in indices):
+                df = df[['15:29:00']]
+            elif all(index in MCX_INDICES for index in indices):
+                df = df[['23:30:00']]
+
             df.columns = [code]
             master_dfs[code] = df
 
