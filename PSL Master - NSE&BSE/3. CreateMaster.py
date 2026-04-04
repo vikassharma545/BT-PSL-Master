@@ -175,14 +175,9 @@ for idx, col in enumerate(mtm_df.columns):
 
 months_dict = {}
 for index in indices:
-    prefix = prefix_from_index.get(index, index)
-    lst = list(master_df[f"{prefix} DTE"])
-    fist_non_zero = next((i for i, x in enumerate(lst) if x != 0))
-    last_non_zero = len(lst) - next((i for i, x in enumerate(reversed(lst)) if x != 0)) - 1
-    first_date = master_df['Date'].iloc[fist_non_zero]
-    last_date = master_df['Date'].iloc[last_non_zero]
-    no_of_days = (last_date - first_date).days
-    months = round(no_of_days/365*12,2)
+    first_date = pd.to_datetime(meta_data_parameter.loc[index]['from_date'].min())
+    last_date = pd.to_datetime(meta_data_parameter.loc[index]['to_date'].max())
+    months = (last_date.to_period('M') - first_date.to_period('M')).n + 1
     months_dict[index] = months
     
 month_row = []
@@ -212,6 +207,45 @@ for idx, col in enumerate(mtm_df.columns):
 mtm_df.loc[len(mtm_df)] = total_row
 mtm_df.loc[len(mtm_df)] = month_row
 mtm_df.loc[len(mtm_df)] = per_month_row
+
+print('Creating... MTM Nearest DTE')
+mtm_df_nearest_dte = mtm_df.copy()
+
+for row in range(1, len(mtm_df_nearest_dte.index)-2):
+    for col in range(1, len(mtm_df_nearest_dte.columns)+1):
+        date = mtm_df_nearest_dte['Date'].iloc[row-1]
+        col_name = mtm_df_nearest_dte.columns.to_list()[col-1]
+        formula = ''
+
+        # index wise MTM Sum
+        if col_name in indices:
+            idx = indices.index(col_name)+1
+            old_formula = (mtm_df_nearest_dte.iloc[row-1, col-1]).replace("=", "")
+            
+            c, r = cell_name(row, mtm_df_nearest_dte.columns.get_loc(indices[0]) + 1)
+            c2, r2 = cell_name(row, mtm_df_nearest_dte.columns.get_loc(indices[-1]) + 1)
+            formula = f"=IF(MATCH(MIN(PL!{c}{r}:{c2}{r2}),PL!{c}{r}:{c2}{r2}, 0)={idx}, {old_formula}, 0)"
+            
+            mtm_df_nearest_dte.iloc[row-1, col-1] = formula
+
+print('Creating... MTM Equally')
+mtm_df_equally = mtm_df.copy()
+
+for row in range(1, len(mtm_df_equally.index)-2):
+    for col in range(1, len(mtm_df_equally.columns)+1):
+        date = mtm_df_equally['Date'].iloc[row-1]
+        col_name = mtm_df_equally.columns.to_list()[col-1]
+        formula = ''
+
+        # index wise MTM Sum
+        if col_name in indices:
+            
+            old_formula = (mtm_df_equally.iloc[row-1, col-1]).replace("=", "")
+            c, r = cell_name(row, mtm_df_equally.columns.get_loc(indices[0]) + 1)
+            c2, r2 = cell_name(row, mtm_df_equally.columns.get_loc(indices[-1]) + 1)
+            formula = f'=IFERROR( {old_formula} / COUNTIF(MTM!{c}{r}:MTM!{c2}{r2},"<>0"), 0)'
+
+            mtm_df_equally.iloc[row-1, col-1] = formula
 
 print('SL Times Data')
 sl_times_dfs = [] 
@@ -256,8 +290,8 @@ for row in range(1, len(strategy_wise_dd.index)+1):
             
 print('Combined DD')
 combined_dd = master_df.copy()
-combined_dd = master_df.iloc[:,:4]
-stg_columns = master_columns[4:]
+combined_dd = master_df.iloc[:,:iCount+2]
+stg_columns = master_columns[iCount+2:]
 unique_stg = natsorted(set([c.rsplit('_', maxsplit=1)[0] for c in stg_columns]))
 
 for stg in unique_stg:
@@ -287,6 +321,8 @@ print("Saving Master File...")
 master_df.set_index(list(master_df.columns[:iCount+2]), inplace=True)
 strategy_wise_dd.set_index(list(strategy_wise_dd.columns[:iCount+2]), inplace=True)
 mtm_df.set_index(list(mtm_df.columns[:2]), inplace=True)
+mtm_df_nearest_dte.set_index(list(mtm_df_nearest_dte.columns[:2]), inplace=True)
+mtm_df_equally.set_index(list(mtm_df_equally.columns[:2]), inplace=True)
 combined_dd.set_index("Date", inplace=True)
 
 writer = pd.ExcelWriter("Master File.xlsx", engine="xlsxwriter")
@@ -295,6 +331,14 @@ sl_times_df.to_excel(writer, sheet_name='Exit Times')
 strategy_wise_dd.to_excel(writer, sheet_name='StgWiseDD')
 combined_dd.to_excel(writer, sheet_name='CombinedDD')
 mtm_df.to_excel(writer, sheet_name="MTM")
+mtm_df_nearest_dte.to_excel(writer, sheet_name="MTM Nearest DTE")
+mtm_df_equally.to_excel(writer, sheet_name="MTM Equally")
+meta_data_parameter.reset_index().to_excel(writer, sheet_name="MetaDataParameter",index=False)
+master_parameter.reset_index().to_excel(writer, sheet_name="MasterParameter",index=False)
+for parameter_path in natsorted(glob("parameters/*.csv")):
+    sheet_name = os.path.splitext(os.path.basename(parameter_path))[0]
+    code_parameter = pd.read_csv(parameter_path)
+    code_parameter.to_excel(writer, sheet_name=sheet_name, index=False)
 
 # Setting format of all sheets
 for sheet in writer.sheets.keys():
@@ -303,7 +347,7 @@ for sheet in writer.sheets.keys():
     bad_format = writer.book.add_format({'bg_color' : '#ffc7ce', 'font_color' : '#960006'})
     good_format = writer.book.add_format({'bg_color' : '#c6efce', 'font_color' : '#006100'})
     
-    if sheet in ["PL", "StgWiseDD", "CombinedDD", "MTM"]:
+    if sheet in ["PL", "StgWiseDD", "CombinedDD", "MTM", "MTM Nearest DTE", "MTM Equally"]:
         worksheet.conditional_format('C2:ZZ1000', {'type':'cell', 'criteria':'<', 'value': 0, 'format':bad_format})
 
     _ = [worksheet.set_row(i, cell_format=default_format) for i in range(2000)]

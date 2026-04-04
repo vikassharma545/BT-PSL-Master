@@ -177,10 +177,6 @@ months_dict = {}
 for index in indices:
     first_date = pd.to_datetime(meta_data_parameter.loc[index]['from_date'].min())
     last_date = pd.to_datetime(meta_data_parameter.loc[index]['to_date'].max())
-    
-    print(f"{index}: {first_date.date()} to {last_date.date()}")
-    
-    
     months = (last_date.to_period('M') - first_date.to_period('M')).n + 1
     months_dict[index] = months
     
@@ -340,7 +336,7 @@ mtm_df_equally.to_excel(writer, sheet_name="MTM Equally")
 meta_data_parameter.reset_index().to_excel(writer, sheet_name="MetaDataParameter",index=False)
 master_parameter.reset_index().to_excel(writer, sheet_name="MasterParameter",index=False)
 for parameter_path in natsorted(glob("parameters/*.csv")):
-    sheet_name = os.path.splitext(os.path.basename(parameter_path))[0][:31]
+    sheet_name = os.path.splitext(os.path.basename(parameter_path))[0]
     code_parameter = pd.read_csv(parameter_path)
     code_parameter.to_excel(writer, sheet_name=sheet_name, index=False)
 
