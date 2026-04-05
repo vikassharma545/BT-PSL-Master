@@ -4,7 +4,7 @@ with open('../config.json', 'r') as file:
     
 pickle_path = config['pickle_path']
 
-code = 'SUT'
+code = 'DT'
 parameter_path = f'../parameters/Parameter_{code}.csv'
 meta_data_path = f"../Parameter_MetaData.csv"
 
@@ -23,7 +23,7 @@ def get_parameter_data(code, parameter_path):
     for col in parameter.columns:
         if 'time' in col:
             parameter[col] = pd.to_datetime(parameter[col].str.replace(' ', '').str[0:5], format='%H:%M').dt.time
-
+    
     # filter - entry < (exit_time - 5min)
     parameter = parameter[pd.to_datetime(parameter['entry_time'], format='%H:%M:%S').dt.time < (pd.to_datetime(parameter['exit_time'], format='%H:%M:%S')-pd.Timedelta(minutes=5)).dt.time]
 
@@ -31,25 +31,18 @@ def get_parameter_data(code, parameter_path):
         parameter[['last_trade_time', 'trade_interval']] = parameter['last_trade_time_and_interval'].str.strip().str.split(',', expand=True)
         parameter['last_trade_time'] = pd.to_datetime(parameter['last_trade_time'], format='%H:%M:%S').dt.time
 
-    if code.startswith("SUT") and code.endswith("PSL"):
-        
-        # filter - entry < (exit_time - 5min)
+    if code.startswith("DT") and code.endswith("PSL"):
         parameter = parameter[pd.to_datetime(parameter['entry_time'], format='%H:%M:%S').dt.time < (pd.to_datetime(parameter['last_trade_time'], format='%H:%M:%S')-pd.Timedelta(minutes=5)).dt.time]
         parameter = parameter[pd.to_datetime(parameter['last_trade_time'], format='%H:%M:%S').dt.time < (pd.to_datetime(parameter['exit_time'], format='%H:%M:%S')-pd.Timedelta(minutes=5)).dt.time]
         
-        #filer intra sl
-        parameter['intra_sl'] = parameter.apply(lambda row: row['sl'] + float(row['intra_sl'].split('+')[-1]) if '+' in str(row['intra_sl']) else float(row['intra_sl']), axis=1)
-        parameter = parameter[~((parameter['intra_sl'] != 0) & (parameter['intra_sl'] < parameter['sl']))]
-
-        # filter - where sl = 0 & intra_sl = 0
-        parameter.loc[(parameter['sl'] == 0) & (parameter['intra_sl'] == 0), 'ut_sl'] = 0
-
+        # filter - where sl = 0
+        parameter.loc[parameter['sl'] == 0, 'method'] = 'HL'
+        
         parameter['trade_interval'] = parameter['trade_interval'].str.upper()
         parameter['orderside'] = parameter['orderside'].str.upper()
-        parameter['ut_orderside'] = parameter['ut_orderside'].str.upper()
-        parameter['ut_method'] = parameter['ut_method'].str.upper()
+        parameter['method'] = parameter['method'].str.upper()
         
-        if code == 'SUT_SI_PSL':
+        if code == 'DT_SI_PSL':
             parameter['std_indicator'] = parameter['std_indicator'].str.upper()
 
     parameter.drop_duplicates(inplace=True, ignore_index=True)
@@ -61,7 +54,7 @@ try:
 except Exception as e:
     input(str(e))
 
-def SUT_per_minute_mtm(bt, start_time, end_time, orderside, sl, intra_sl, om, ut_orderside, ut_method, ut_sl, ut_om, seperate=False):
+def DT_per_minute_mtm(bt, start_time, end_time, orderside, method, decay, sl, om, seperate=False):
     try:
         start_dt = datetime.datetime.combine(bt.current_date, start_time)
         end_dt = datetime.datetime.combine(bt.current_date, end_time)
@@ -69,43 +62,29 @@ def SUT_per_minute_mtm(bt, start_time, end_time, orderside, sl, intra_sl, om, ut
         ce_scrip, pe_scrip, ce_price, pe_price, future_price, start_dt = bt.get_strike(start_dt, end_dt, om=om)
         if ce_scrip is None: return None
 
+        from_candle_close = True if method == 'CC' else False
         entry_time = start_dt
-        std_sl_time, std_mtm_data = bt.sl_check_combine_leg(start_dt, end_dt, ce_scrip, pe_scrip, sl=sl, intra_sl=intra_sl, orderside=orderside, per_minute_mtm=True)
-        
-        ut, ut_mtm_data = '', pd.Series()
-        if std_sl_time and (std_sl_time < end_dt - datetime.timedelta(minutes=5)):
-            
-            ce_inc_rate = (bt.options_data.loc[(std_sl_time, ce_scrip), 'close'] - ce_price)/ce_price
-            pe_inc_rate = (bt.options_data.loc[(std_sl_time, pe_scrip), 'close'] - pe_price)/pe_price
-            
-            if ce_inc_rate > pe_inc_rate:
-                ut = 'PE' if ut_orderside == 'SELL' else 'CE'
-            elif ce_inc_rate < pe_inc_rate:
-                ut = 'CE' if ut_orderside == 'SELL' else 'PE'
 
-            if ut:
-                ut_scrip, ut_price, ut_future_price, ut_start_dt = bt.get_strike(std_sl_time, end_dt, om=ut_om, only=ut)
+        # check entry
+        ce_open, ce_high, ce_low, ce_close, ce_decay_price, ce_decay_flag, ce_decay_time = bt.decay_check_single_leg(start_dt, end_dt, ce_scrip, decay=decay, from_candle_close=from_candle_close, orderside=orderside, with_ohlc=True)
+        pe_open, pe_high, pe_low, pe_close, pe_decay_price, pe_decay_flag, pe_decay_time = bt.decay_check_single_leg(start_dt, end_dt, pe_scrip, decay=decay, from_candle_close=from_candle_close, orderside=orderside, with_ohlc=True)
 
-                if ut_scrip:
-                    from_candle_close = True if ut_method == 'CC' else False
-                    ut_sl_time, ut_mtm_data = bt.sl_check_single_leg(ut_start_dt, end_dt, ut_scrip, sl=ut_sl, orderside=ut_orderside, from_candle_close=from_candle_close, per_minute_mtm=True)
+        # check sl
+        ce_sl_time, ce_mtm_data = bt.sl_check_single_leg(ce_decay_time, end_dt, ce_scrip, o=(None if method == 'CC' else ce_decay_price), sl=sl, orderside=orderside, from_candle_close=from_candle_close, per_minute_mtm=True)
+        pe_sl_time, pe_mtm_data = bt.sl_check_single_leg(pe_decay_time, end_dt, pe_scrip, o=(None if method == 'CC' else pe_decay_price), sl=sl, orderside=orderside, from_candle_close=from_candle_close, per_minute_mtm=True)
 
         if seperate:
-            return std_mtm_data, ut_mtm_data
+            return ce_mtm_data, pe_mtm_data
         else:
-            std_mtm_data = set_pm_time_index(std_mtm_data, time_index)
-
-            if ut:
-                ut_mtm_data = set_pm_time_index(ut_mtm_data, time_index)
-                return std_mtm_data+ut_mtm_data
-            else:
-                return std_mtm_data
+            ce_mtm_data = set_pm_time_index(ce_mtm_data, time_index)
+            pe_mtm_data = set_pm_time_index(pe_mtm_data, time_index)
+            return ce_mtm_data+pe_mtm_data
 
     except Exception as e:
-        print(e, [bt.index, bt.current_date, start_time, end_time, orderside, sl, intra_sl, om, ut_orderside, ut_method, ut_sl, ut_om])
+        print(e, [bt.index, bt.current_date, start_time, end_time, orderside, method, decay, sl, om])
         return
 
-def SUT_PSL(bt, start_time, end_time, last_trade_time, trade_interval, orderside, sl, intra_sl, om, ut_orderside, ut_method, ut_sl, ut_om):
+def DT_PSL(bt, start_time, end_time, last_trade_time, trade_interval, orderside, method, decay, sl, om):
     try:
         start_dt = datetime.datetime.combine(bt.current_date, start_time)
         end_dt = datetime.datetime.combine(bt.current_date, end_time)
@@ -114,9 +93,9 @@ def SUT_PSL(bt, start_time, end_time, last_trade_time, trade_interval, orderside
         entry_time = start_dt
         time_range = pd.date_range(start_dt, last_trade_dt, freq=trade_interval.lower()).time
         
-        per_minute_trades = [SUT_per_minute_mtm(bt, re_time, end_time, orderside, sl, intra_sl, om, ut_orderside, ut_method, ut_sl, ut_om) for re_time in time_range]
+        per_minute_trades = [DT_per_minute_mtm(bt, re_time, end_time, orderside, method, decay, sl, om) for re_time in time_range]
         per_minute_trades = [t for t in per_minute_trades if t is not None]
-
+        
         if per_minute_trades:
             per_minute_mtm = np.sum(per_minute_trades, axis=0)
             mtm_time_list = list(per_minute_mtm)
@@ -126,9 +105,9 @@ def SUT_PSL(bt, start_time, end_time, last_trade_time, trade_interval, orderside
             margin_per_share = future_price * (notinal_value / 100)
             minute_margin_per_share = int(total_minutes*margin_per_share)
 
-            return [tcode, bt.index, start_time, end_time, last_trade_time, trade_interval, orderside, sl, intra_sl, om, ut_orderside, ut_method, ut_sl, ut_om, bt.current_date.date(), bt.current_date.day_name(), bt.dte, entry_time.time(), minute_margin_per_share] + mtm_time_list
+            return [tcode, bt.index, start_time, end_time, last_trade_time, trade_interval, orderside, method, decay, sl, om, bt.current_date.date(), bt.current_date.day_name(), bt.dte, entry_time.time(), minute_margin_per_share] + mtm_time_list
     except Exception as e:
-        print(e, [bt.index, bt.current_date, start_time, end_time, last_trade_time, trade_interval, orderside, sl, intra_sl, om, ut_orderside, ut_method, ut_sl, ut_om])
+        print(e, [bt.index, bt.current_date, start_time, end_time, last_trade_time, trade_interval, orderside, method, decay, sl, om])
         return
 
 codes = list(parameter['code'].unique())
@@ -150,7 +129,7 @@ for tcode in codes:
                 index, dte, from_date, to_date, start_time, end_time, date_lists = get_meta_row_data(meta_row, pickle_path)
                 notinal_value = meta_row['Nv']
 
-                log_cols = ('P_Strategy/P_Index/P_StartTime/P_EndTime/P_LastTradeTime/P_TradeInterval/P_OrderSide/P_SL/P_intraSL/P_OM/P_UTOrderSide/P_UTMethod/P_UTSL/P_UTOM/Date/Day/DTE/EntryTime/MMPS/')
+                log_cols = ('P_Strategy/P_Index/P_StartTime/P_EndTime/P_LastTradeTime/P_TradeInterval/P_OrderSide/P_Method/P_Decay/P_SL/P_OM/Date/Day/DTE/Entry.Time/MMPS/')
                 log_time_col = get_pm_time_index(datetime.datetime.now(), start_time, end_time).time
                 log_cols += '/'.join(map(str, log_time_col))
                 log_cols = log_cols.split('/')
@@ -186,9 +165,9 @@ for tcode in codes:
                         for idx, i in enumerate(range(0, parameter_len, chunk_size), start=1):
                             chunck_file_name = f"{output_csv_path}{file_name} No-{idx}.parquet"
                             print(chunck_file_name)
-                            
+
                             chunk_parameter = tparameter.iloc[i:i+chunk_size]
-                            chunk = [SUT_PSL(bt, row.entry_time, row.exit_time, row.last_trade_time, row.trade_interval, row.orderside, row.sl, row.intra_sl, row.om, row.ut_orderside, row.ut_method, row.ut_sl, row.ut_om) for row in tqdm(chunk_parameter.itertuples(), total=len(chunk_parameter), colour='GREEN')]
+                            chunk = [DT_PSL(bt, row.entry_time, row.exit_time, row.last_trade_time, row.trade_interval, row.orderside, row.method, row.decay, row.sl, row.om) for row in tqdm(chunk_parameter.itertuples(), total=len(chunk_parameter), colour='GREEN')]
                             save_chunk_data(chunk, log_cols, chunck_file_name)
                         
                         t2 = datetime.datetime.now()
@@ -200,6 +179,6 @@ for tcode in codes:
                             os.remove(lock_path)
                         except OSError:
                             pass
-
+                    
             except Exception as e:
                 input(str(e))

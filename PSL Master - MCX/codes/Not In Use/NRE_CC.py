@@ -159,8 +159,8 @@ def NRE_CC_PSL(bt, start_time, end_time, last_trade_time, trade_interval, orders
             future_price = bt.future_data['close'].iloc[0]
             margin_per_share = future_price * (notinal_value / 100)
             minute_margin_per_share = int(total_minutes*margin_per_share)
-       
-        return [tcode, bt.index, start_time, end_time, last_trade_time, trade_interval, orderside, method, sl, om, re_entries, bt.current_date.date(), bt.current_date.day_name(), bt.dte, entry_time.time(), minute_margin_per_share] + mtm_time_list
+
+            return [tcode, bt.index, start_time, end_time, last_trade_time, trade_interval, orderside, method, sl, om, re_entries, bt.current_date.date(), bt.current_date.day_name(), bt.dte, entry_time.time(), minute_margin_per_share] + mtm_time_list
     except Exception as e:
         print(e, [bt.index, bt.current_date, start_time, end_time, last_trade_time, trade_interval, orderside, method, sl, om, re_entries])
         return

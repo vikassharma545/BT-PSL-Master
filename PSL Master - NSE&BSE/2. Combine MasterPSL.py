@@ -63,7 +63,7 @@ for index in indices:
         for dte in dtes:
             
             dte_dates = dte_file[(dte_file[index] == dte) & (dte_file.index >= min_from_date) & (dte_file.index <= max_to_date)].index
-            output_files = [f'backend_files/codes_output/{code}_output\\{index} {date.date()} {code} No-1.parquet' for date in dte_dates]
+            output_files = [f'backend_files/codes_output/{code}_output/{index} {date.date()} {code} No-1.parquet' for date in dte_dates]
             output_files = [o for o in output_files if o in codes_output]
             
             if output_files:
