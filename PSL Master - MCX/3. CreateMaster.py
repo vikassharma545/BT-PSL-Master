@@ -260,7 +260,7 @@ for index in indices:
         sl_time_csvs = glob(f"backend_files/sl_times/{index} {code} *.csv")
         
         if sl_time_csvs:
-            df = pd.concat([pd.read_csv(f).set_index('Date').rename(columns={f.split("\\")[-1].replace(".csv", ""): f'{prefix_from_index.get(index, index)} {code}'}) for f in sl_time_csvs], axis=0)
+            df = pd.concat([pd.read_csv(f).set_index('Date').rename(columns={os.path.splitext(os.path.basename(f))[0]: f'{prefix_from_index.get(index, index)} {code}'}) for f in sl_time_csvs], axis=0)
             df.index = pd.to_datetime(df.index)
             df = df.reindex(pd.to_datetime(master_df['Date']), fill_value=0)
             sl_times_dfs.append(df)
