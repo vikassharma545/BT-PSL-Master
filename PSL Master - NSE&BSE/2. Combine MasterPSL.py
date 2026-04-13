@@ -68,8 +68,11 @@ for index in indices:
             output_files = [o for o in output_files if o in codes_output]
             
             if output_files:
+                if (code, index, dte) not in master_parameter.index:
+                    continue
+
                 print(index, code, dte)
-                
+
                 fund = master_parameter.loc[(code, index, dte), 'Fund']
                 positive_stoploss = master_parameter.loc[(code, index, dte), 'PositivePSL']
                 positive_stoploss_amount = fund * (positive_stoploss/100)
@@ -115,15 +118,37 @@ for index in indices:
 
     if indices_code_dfs:
         index_df = sum([df for code, df in indices_code_dfs.items()])
-        fund = master_parameter.loc[(index, index, -1), 'Fund']
-        
-        positive_stoploss = master_parameter.loc[(index, index, -1), 'PositivePSL']
-        positive_stoploss_amount = fund * (positive_stoploss/100)
-        
-        negative_stoploss = master_parameter.loc[(index, index, -1), 'NegativePSL']
-        negative_stoploss_amount = fund * (negative_stoploss/100)
 
-        stop_times = index_df[time_columns].apply(lambda row: check_stoploss(row, positive_stoploss_amount, negative_stoploss_amount), axis=1)
+        last_time = time_columns[-1]
+        stop_times = pd.Series(last_time, index=index_df.index)
+
+        for dte in dtes:
+            dte_dates = dte_file[(dte_file[index] == dte) & (dte_file.index >= min_from_date) & (dte_file.index <= max_to_date)].index
+            dte_dates = dte_dates[dte_dates.isin(index_df.index)]
+
+            if dte_dates.empty:
+                continue
+
+            if (index, index, dte) not in master_parameter.index:
+                continue
+
+            fund = master_parameter.loc[(index, index, dte), 'Fund']
+            if fund == -1:
+                fund = master_parameter.loc[master_parameter.index.get_level_values('Index') == index]
+                fund = fund.loc[(fund.index.get_level_values('Strategy') != index) &
+                                (fund.index.get_level_values('dte') == dte), 'Fund'].sum()
+
+            positive_stoploss = master_parameter.loc[(index, index, dte), 'PositivePSL']
+            positive_stoploss_amount = fund * (positive_stoploss / 100)
+            
+            negative_stoploss = master_parameter.loc[(index, index, dte), 'NegativePSL']
+            negative_stoploss_amount = fund * (negative_stoploss / 100)
+
+            dte_index_df = index_df.loc[dte_dates]
+            dte_stop_times = dte_index_df[time_columns].apply(
+                lambda row: check_stoploss(row, positive_stoploss_amount, negative_stoploss_amount), axis=1
+            )
+            stop_times.loc[dte_dates] = dte_stop_times
 
         for code, df in indices_code_dfs.items():
             for idx, time in enumerate(stop_times):
