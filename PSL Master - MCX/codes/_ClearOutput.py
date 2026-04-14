@@ -18,3 +18,6 @@ for base_path in paths:
         if os.path.isdir(item_path):
             shutil.rmtree(item_path, ignore_errors=True)
             print(f"Deleted folder: {item_path}")
+        elif os.path.isfile(item_path):
+            os.remove(item_path)
+            print(f"Deleted file: {item_path}")
