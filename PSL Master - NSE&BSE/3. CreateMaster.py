@@ -386,9 +386,21 @@ for row in range(1, len(combined_dd.index)+1):
             combined_dd.iat[row-1, col-1] = formula
 
 print("Saving Master File...")
-# StgPL: per-strategy total P&L (sum across all dates) - computed before set_index while strategies are still data columns
-_stg_columns = master_columns[iCount+2:]
-stg_pl_df = pd.DataFrame({'Strategy': _stg_columns, 'Point': [master_df[c].sum() for c in _stg_columns]})
+# StgPL: per (Index, DTE, Strategy) total P&L
+# - Rows come from strategy entries in master_parameter (sentinel index-rows excluded)
+# - For each (Strategy, Index, dte): sum P&L on dates where the index's current DTE matches
+_strategy_idx = master_parameter.index[
+    master_parameter.index.get_level_values('Strategy') != master_parameter.index.get_level_values('Index')]
+_mdf_by_date = master_df.set_index(pd.to_datetime(master_df['Date']))
+_stg_pl_rows = []
+for _strat, _strat_idx, _strat_dte in _strategy_idx:
+    _col = f'{prefix_from_index.get(_strat_idx, _strat_idx)} {_strat}'
+    if _col not in _mdf_by_date.columns:
+        continue
+    _active = dte_file.index[dte_file[_strat_idx] == _strat_dte].intersection(_mdf_by_date.index)
+    _stg_pl_rows.append({'Index': _strat_idx, 'DTE': int(_strat_dte), 'Strategy': _strat,
+                         'Point': _mdf_by_date.loc[_active, _col].sum()})
+stg_pl_df = pd.DataFrame(_stg_pl_rows, columns=['Index', 'DTE', 'Strategy', 'Point'])
 
 master_df.set_index(list(master_df.columns[:iCount+2]), inplace=True)
 strategy_wise_dd.set_index(list(strategy_wise_dd.columns[:iCount+2]), inplace=True)
