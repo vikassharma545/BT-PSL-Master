@@ -21,3 +21,5 @@ for base_path in paths:
         elif os.path.isfile(item_path):
             os.remove(item_path)
             print(f"Deleted file: {item_path}")
+
+input("Press Enter to exit")
