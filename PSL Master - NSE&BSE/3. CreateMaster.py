@@ -1,12 +1,8 @@
 import re
 import os
 import json
-import pyotp
-import datetime
-import requests
 import pandas as pd
 from glob import glob
-from tqdm import tqdm
 from natsort import natsorted
 
 import warnings
@@ -62,7 +58,29 @@ mtm_df[[f"{index}-Hedge-DD" for index in indices] + ['Total-Hedge-DD', 'Hedge-DD
 mtm_df[['Loss-Days', 'Loss-Amount', 'Profit-Days', 'Profit-Amount', 'Loss-Greater-1%', 'Profit-Greater-1%']] = 0
 mtm_df[['Hedge-Loss-Days', 'Hedge-Loss-Amount', 'Hedge-Profit-Days', 'Hedge-Profit-Amount', 'Hedge-Loss-Greater-1%', 'Hedge-Profit-Greater-1%']] = 0
 
-max_margin = master_parameter.loc[indices]['Fund'].max()
+# Daily total fund deployed per day, used as the 1%-threshold base:
+#   daily_fund         -> MTM sheet (sum across all indices)
+#   daily_fund_nearest -> MTM Nearest DTE (only the smallest-DTE index)
+#   daily_fund_equally -> MTM Equally (daily_fund / number of indices with fund > 0)
+_fund_by = master_parameter[master_parameter['Fund'] > 0].groupby(level=['Index', 'dte'])['Fund'].sum().to_dict()
+_dates = pd.to_datetime(master_df['Date'])
+_dtes_df = dte_file.loc[_dates, indices]
+_per_idx = pd.DataFrame(
+    [[0 if pd.isna(_dtes_df.at[d, i]) else _fund_by.get((i, int(_dtes_df.at[d, i])), 0) for i in indices] for d in _dates],
+    index=_dates, columns=indices)
+_active_count = (_per_idx > 0).sum(axis=1)
+
+daily_fund = _per_idx.sum(axis=1).round().astype(int)
+daily_fund_nearest = pd.Series(
+    [_per_idx.at[d, _dtes_df.loc[d].idxmin()] if _dtes_df.loc[d].notna().any() else 0 for d in _dates],
+    index=_dates).round().astype(int)
+daily_fund_equally = (_per_idx.sum(axis=1) / _active_count.replace(0, 1)).round().astype(int)
+
+# Written to the FundUse sheet of Master File.xlsx (for manual verification)
+fund_use_df = _dtes_df.rename(columns=lambda x: f'{prefix_from_index.get(x, x)} DTE').assign(
+    Fund=daily_fund.values,
+    **{'Nearest Fund': daily_fund_nearest.values, 'Equally Fund': daily_fund_equally.values})
+fund_use_df.index.name = 'Date'
 
 index_ranges = {}
 for index in indices:
@@ -88,7 +106,7 @@ for row in range(1, len(mtm_df.index)+1):
 
         # Total MTM
         elif col_name in ['Total']:
-            formula = f"=SUM(C{row+1}:{chr(ord('C') + iCount - 1)}{row+1})"
+            formula = f"=SUM(C{row+1}:{cell_name(col=2+iCount)}{row+1})"
             mtm_df.iloc[row-1, col-1] = formula
         
         ## Hedge calculate index wise
@@ -116,12 +134,12 @@ for row in range(1, len(mtm_df.index)+1):
             formula = f"=IF({c}{r} < 0, 1, 0)" if row == 1 else f"=IF({c}{r} < 0, 1 + {c2}{r2}, 0)"
             mtm_df.iloc[row-1, col-1] = formula
             
-        ## Total Hedge
+        ## Total Hedge (= sum of the iCount index-Hedge columns immediately to the left)
         elif col_name in ['Total-Hedge']:
-            c, r = cell_name(row, mtm_df.columns.get_loc(col_name) + 1)
-            t = [f"{chr(ord(c) - idx-1)}{r}" for idx, index in enumerate(indices)]
-            format_string = "=" + " + ".join(["{" + str(i) + "}" for i in range(len(t))][::-1])
-            formula = format_string.format(*t)
+            total_hedge_col = mtm_df.columns.get_loc(col_name) + 1
+            c1, r1 = cell_name(row, total_hedge_col - iCount)
+            c2, r2 = cell_name(row, total_hedge_col - 1)
+            formula = f"=SUM({c1}{r1}:{c2}{r2})"
             mtm_df.iloc[row-1, col-1] = formula
             
         elif col_name in ['Loss-Days', 'Hedge-Loss-Days', 'Profit-Days', 'Hedge-Profit-Days']:
@@ -140,12 +158,16 @@ for row in range(1, len(mtm_df.index)+1):
             mtm_df.iloc[row-1, col-1] = formula
 
         elif col_name in ['Loss-Greater-1%', 'Hedge-Loss-Greater-1%', 'Profit-Greater-1%', 'Hedge-Profit-Greater-1%']:
-            
+            # Threshold is 1% of THIS day's deployed fund, not a single max across days
             index_col = col_name.replace('-Greater-1%', '-Amount')
             c1, r1 = cell_name(row, mtm_df.columns.get_loc(index_col) + 1)
 
             sign = '<-' if 'Loss' in col_name else '>'
-            formula = f"=IF({c1}{r1}{sign}{max_margin}/100,1,0)"
+            fund_for_day = daily_fund.iloc[row-1]
+            if fund_for_day > 0:
+                formula = f"=IF({c1}{r1}{sign}{fund_for_day}/100,1,0)"
+            else:
+                formula = 0
             mtm_df.iloc[row-1, col-1] = formula
 
 last_row_no = mtm_df.shape[0] + 1
@@ -228,6 +250,30 @@ for row in range(1, len(mtm_df_nearest_dte.index)-2):
             
             mtm_df_nearest_dte.iloc[row-1, col-1] = formula
 
+        # Hedge cell must follow the same nearest-DTE gating so hedge cost isn't charged on non-active days
+        elif col_name in [f"{_idx}-Hedge" for _idx in indices]:
+            index_col = col_name.replace('-Hedge', '')
+            idx_of_index = indices.index(index_col) + 1
+            old_formula = (mtm_df_nearest_dte.iloc[row-1, col-1]).replace("=", "")
+
+            c, r = cell_name(row, mtm_df_nearest_dte.columns.get_loc(indices[0]) + 1)
+            c2, r2 = cell_name(row, mtm_df_nearest_dte.columns.get_loc(indices[-1]) + 1)
+            formula = f"=IF(MATCH(MIN(PL!{c}{r}:{c2}{r2}),PL!{c}{r}:{c2}{r2}, 0)={idx_of_index}, {old_formula}, 0)"
+
+            mtm_df_nearest_dte.iloc[row-1, col-1] = formula
+
+        # Greater-1% threshold uses only the nearest-DTE index's fund, not the portfolio total
+        elif col_name in ['Loss-Greater-1%', 'Hedge-Loss-Greater-1%', 'Profit-Greater-1%', 'Hedge-Profit-Greater-1%']:
+            index_col = col_name.replace('-Greater-1%', '-Amount')
+            c1, r1 = cell_name(row, mtm_df_nearest_dte.columns.get_loc(index_col) + 1)
+            sign = '<-' if 'Loss' in col_name else '>'
+            fund_for_day = daily_fund_nearest.iloc[row-1]
+            if fund_for_day > 0:
+                formula = f"=IF({c1}{r1}{sign}{fund_for_day}/100,1,0)"
+            else:
+                formula = 0
+            mtm_df_nearest_dte.iloc[row-1, col-1] = formula
+
 print('Creating... MTM Equally')
 mtm_df_equally = mtm_df.copy()
 
@@ -245,6 +291,28 @@ for row in range(1, len(mtm_df_equally.index)-2):
             c2, r2 = cell_name(row, mtm_df_equally.columns.get_loc(indices[-1]) + 1)
             formula = f'=IFERROR( {old_formula} / COUNTIF(MTM!{c}{r}:MTM!{c2}{r2},"<>0"), 0)'
 
+            mtm_df_equally.iloc[row-1, col-1] = formula
+
+        # Hedge: reference MTM's full Hedge value and divide by the same count, so
+        # P&L and hedge cost scale together. Avoids double-dividing the MTM term.
+        elif col_name in [f"{_idx}-Hedge" for _idx in indices]:
+            c_hedge, r_hedge = cell_name(row, mtm_df_equally.columns.get_loc(col_name) + 1)
+            c, r = cell_name(row, mtm_df_equally.columns.get_loc(indices[0]) + 1)
+            c2, r2 = cell_name(row, mtm_df_equally.columns.get_loc(indices[-1]) + 1)
+            formula = f'=IFERROR( MTM!{c_hedge}{r_hedge} / COUNTIF(MTM!{c}{r}:MTM!{c2}{r2},"<>0"), 0)'
+
+            mtm_df_equally.iloc[row-1, col-1] = formula
+
+        # Greater-1% threshold uses the equally-weighted fund (portfolio / active index count)
+        elif col_name in ['Loss-Greater-1%', 'Hedge-Loss-Greater-1%', 'Profit-Greater-1%', 'Hedge-Profit-Greater-1%']:
+            index_col = col_name.replace('-Greater-1%', '-Amount')
+            c1, r1 = cell_name(row, mtm_df_equally.columns.get_loc(index_col) + 1)
+            sign = '<-' if 'Loss' in col_name else '>'
+            fund_for_day = daily_fund_equally.iloc[row-1]
+            if fund_for_day > 0:
+                formula = f"=IF({c1}{r1}{sign}{fund_for_day}/100,1,0)"
+            else:
+                formula = 0
             mtm_df_equally.iloc[row-1, col-1] = formula
 
 print('SL Times Data')
@@ -295,7 +363,7 @@ stg_columns = master_columns[iCount+2:]
 unique_stg = natsorted(set([c.rsplit('_', maxsplit=1)[0] for c in stg_columns]))
 
 for stg in unique_stg:
-    req_cols = [s for s in stg_columns if re.fullmatch(rf"{stg}_\d+", s)]
+    req_cols = [s for s in stg_columns if re.fullmatch(rf"{re.escape(stg)}_\d+", s)]
     combined_dd[stg] = master_df[req_cols].sum(axis=1)
 
 combined_dd.set_index(list(combined_dd.columns[:iCount+2]), inplace=True)
@@ -318,6 +386,10 @@ for row in range(1, len(combined_dd.index)+1):
             combined_dd.iat[row-1, col-1] = formula
 
 print("Saving Master File...")
+# StgPL: per-strategy total P&L (sum across all dates) - computed before set_index while strategies are still data columns
+_stg_columns = master_columns[iCount+2:]
+stg_pl_df = pd.DataFrame({'Strategy': _stg_columns, 'Point': [master_df[c].sum() for c in _stg_columns]})
+
 master_df.set_index(list(master_df.columns[:iCount+2]), inplace=True)
 strategy_wise_dd.set_index(list(strategy_wise_dd.columns[:iCount+2]), inplace=True)
 mtm_df.set_index(list(mtm_df.columns[:2]), inplace=True)
@@ -327,12 +399,14 @@ combined_dd.set_index("Date", inplace=True)
 
 writer = pd.ExcelWriter("Master File.xlsx", engine="xlsxwriter")
 master_df.to_excel(writer, sheet_name="PL")
+stg_pl_df.to_excel(writer, sheet_name="StgPL", index=False)
 sl_times_df.to_excel(writer, sheet_name='Exit Times')
 strategy_wise_dd.to_excel(writer, sheet_name='StgWiseDD')
 combined_dd.to_excel(writer, sheet_name='CombinedDD')
 mtm_df.to_excel(writer, sheet_name="MTM")
 mtm_df_nearest_dte.to_excel(writer, sheet_name="MTM Nearest DTE")
 mtm_df_equally.to_excel(writer, sheet_name="MTM Equally")
+fund_use_df.to_excel(writer, sheet_name="FundUse")
 meta_data_parameter.reset_index().to_excel(writer, sheet_name="MetaDataParameter",index=False)
 master_parameter.reset_index().to_excel(writer, sheet_name="MasterParameter",index=False)
 for parameter_path in natsorted(glob("parameters/*.csv")):
