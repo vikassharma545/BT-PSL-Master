@@ -22,12 +22,25 @@ with open('config.json', 'r') as file:
 pickle_path = config['pickle_path']
 master_parameter = pd.read_csv("MasterParemeter.csv", index_col=[0, 1, 2])
 master_parameter = master_parameter.sort_index()
+
+# Strategy rows only (exclude index-level sentinel rows where Strategy == Index)
+_code_funds = master_parameter.loc[
+    master_parameter.index.get_level_values('Strategy') != master_parameter.index.get_level_values('Index'),
+    'Fund'
+]
+if (_code_funds == 0).all():
+    print("\nAll strategy Fund values are 0 in MasterParemeter.csv.")
+    print("Open MasterParemeter.csv, set Fund values for each strategy row, then re-run this script.")
+    input("Press Enter to exit")
+    raise SystemExit(1)
+
 dte_file = pd.read_csv(f"{pickle_path}DTE.csv", parse_dates=['Date'], dayfirst=True).set_index("Date")
 meta_data_parameter = pd.read_csv('Parameter_MetaData.csv', index_col=[0, 1], parse_dates=['from_date', 'to_date'], dayfirst=True)
 
-indices = sorted(pd.concat([pd.read_csv(p, usecols=['index', 'code', 'dte']) for p in glob('parameters/*.csv')])['index'].dropna().unique())
-codes = natsorted(pd.concat([pd.read_csv(p, usecols=['code', 'dte']) for p in glob('parameters/*.csv')])['code'].dropna().unique())
-dtes = list(map(int, pd.concat([pd.read_csv(p, usecols=['code', 'dte']) for p in glob('parameters/*.csv')])['dte'].dropna().unique()))
+param_df = pd.concat([pd.read_csv(p, usecols=['index', 'code', 'dte']) for p in glob('parameters/*.csv')])
+indices = sorted(param_df['index'].dropna().unique())
+codes = natsorted(param_df['code'].dropna().unique())
+dtes = list(map(int, param_df['dte'].dropna().unique()))
 prefix_from_index = {'NIFTY': 'NF','BANKNIFTY': 'BN', 'FINNIFTY': 'FN', 'MIDCPNIFTY':'MCN', 'BANKEX': 'BX', 'SENSEX':'SX'}
 
 sl_times_outputs = 'backend_files/sl_times'
@@ -83,13 +96,14 @@ for index in indices:
                 df = dd.read_parquet(output_files, columns=columns)
                 df = df.compute()
                 df[['MMPS'] + time_columns] = df[['MMPS'] + time_columns].astype(float)
-                df = df.copy()
+                df = df.copy()  # de-fragment after multi-column dtype assign
                 df = df.groupby(['Date', 'Day', 'DTE'], as_index=False).sum(numeric_only=True)
                 
                 df['SPM'] = fund / df['MMPS']
                 df[time_columns] = df[time_columns].mul(df['SPM'], axis=0)
                 stop_times = df[time_columns].apply(lambda row: check_stoploss(row, positive_stoploss_amount, negative_stoploss_amount), axis=1)
 
+                # Exit semantics: stop detected at T, execution fills at T+1 (realistic 1-min lag)
                 for idx, time in enumerate(stop_times):
 
                     if all(index in NSE_BSE_INDICES for index in indices) and (time == '15:29:00'):
@@ -140,6 +154,7 @@ for index in indices:
 
             positive_stoploss = master_parameter.loc[(index, index, dte), 'PositivePSL']
             positive_stoploss_amount = fund * (positive_stoploss / 100)
+            
             negative_stoploss = master_parameter.loc[(index, index, dte), 'NegativePSL']
             negative_stoploss_amount = fund * (negative_stoploss / 100)
 
@@ -149,7 +164,9 @@ for index in indices:
             )
             stop_times.loc[dte_dates] = dte_stop_times
 
-        for code, df in indices_code_dfs.items():
+        # code_key is the prefixed name, e.g. "NF NRE_CC_1" (not the raw code)
+        for code_key, df in indices_code_dfs.items():
+            # Apply index-level stop to each strategy using same T+1 exit semantics
             for idx, time in enumerate(stop_times):
 
                 if all(index in NSE_BSE_INDICES for index in indices) and (time == '15:29:00'):
@@ -160,20 +177,27 @@ for index in indices:
 
                 df.iloc[idx, df.columns.get_loc(time) + 1:] = df.iat[idx, df.columns.get_loc(time) + 1]
 
-            df.to_csv(f"{modified_outputs}/{index} {code}.csv")
+            df.to_csv(f"{modified_outputs}/{index} {code_key}.csv")
 
             if all(index in NSE_BSE_INDICES for index in indices):
                 df = df[['15:29:00']]
             elif all(index in MCX_INDICES for index in indices):
                 df = df[['23:30:00']]
 
-            df.columns = [code]
-            master_dfs[code] = df
+            df.columns = [code_key]
+            master_dfs[code_key] = df
 
         stop_times.index = index_df.index
         stop_times.name = f"{index}"
         stop_times.to_csv(f"{sl_times_outputs}/{index}.csv")
     
+if not master_dfs:
+    print("\nNo strategy outputs were processed.")
+    print("backend_files/codes_output/ has no parquet files for the configured indices/codes/dtes.")
+    print("Run the code scripts (codes/NRE_CC.py, codes/SRE_PREMIUM_SHIFT.py, codes/SRE_SEPARATE_LEG_SL.py) first.")
+    input("Press Enter to exit")
+    raise SystemExit(1)
+
 master_df = pd.concat([df for code, df in master_dfs.items()], axis=1)
 master_df = master_df[natsorted(master_df.columns)]
 master_df.reset_index(inplace=True)
