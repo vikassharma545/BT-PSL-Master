@@ -34,8 +34,11 @@ def get_parameter_data(code, parameter_path):
     if code.startswith("NRE_CC_RE_TillTime") and code.endswith("PSL"):
         
         # filter - entry < (exit_time - 5min)
-        parameter = parameter[pd.to_datetime(parameter['entry_time'], format='%H:%M:%S').dt.time < (pd.to_datetime(parameter['last_trade_time'], format='%H:%M:%S')-pd.Timedelta(minutes=5)).dt.time]
+        parameter = parameter[pd.to_datetime(parameter['entry_time'], format='%H:%M:%S').dt.time < pd.to_datetime(parameter['last_trade_time'], format='%H:%M:%S').dt.time]
         parameter = parameter[pd.to_datetime(parameter['last_trade_time'], format='%H:%M:%S').dt.time < (pd.to_datetime(parameter['exit_time'], format='%H:%M:%S')-pd.Timedelta(minutes=5)).dt.time]
+        
+        # entry_time < till_time
+        parameter = parameter[pd.to_datetime(parameter['entry_time'], format='%H:%M:%S').dt.time < pd.to_datetime(parameter['till_time'], format='%H:%M:%S').dt.time]
         
         # filter - where sl = 0
         parameter.loc[parameter['sl'] == 0, 'method'] = 'HL'
@@ -79,7 +82,7 @@ def NRE_CC_per_minute_mtm(bt, start_time, end_time, orderside, method, sl, om, s
                 if ce_price <= ce_price_at_sl:
                     _, ce_decay_flag, ce_decay_time = bt.decay_check_single_leg(start_dt, end_dt, ce_scrip, decay_price=ce_price, from_candle_close=from_candle_close, orderside=orderside)
                     
-                    if ce_decay_flag:
+                    if ce_decay_flag and (ce_decay_time.time() < still_time):
                         ce_sl_time, ce_mtm_data = bt.sl_check_single_leg(ce_decay_time, end_dt, ce_scrip, o=(None if method == 'CC' else ce_price), sl=sl, orderside=orderside, from_candle_close=from_candle_close, per_minute_mtm=True)
                         ce_mtm_data = set_pm_time_index(ce_mtm_data, time_index)
                         ce_re_mtm_data += ce_mtm_data
@@ -89,7 +92,7 @@ def NRE_CC_per_minute_mtm(bt, start_time, end_time, orderside, method, sl, om, s
                     ce_decay_flag = True
                     ce_scrip, ce_price, future_price, ce_decay_time = bt.get_strike(start_dt, end_dt, target=ce_price, only='CE')
                     
-                    if ce_decay_time is not None:                        
+                    if ce_decay_time is not None and (ce_decay_time.time() < still_time):
                         ce_sl_time, ce_mtm_data = bt.sl_check_single_leg(ce_decay_time, end_dt, ce_scrip, o=(None if method == 'CC' else ce_price), sl=sl, orderside=orderside, from_candle_close=from_candle_close, per_minute_mtm=True)
                         ce_mtm_data = set_pm_time_index(ce_mtm_data, time_index)
                         ce_re_mtm_data += ce_mtm_data
@@ -108,7 +111,7 @@ def NRE_CC_per_minute_mtm(bt, start_time, end_time, orderside, method, sl, om, s
                 if pe_price <= pe_price_at_sl:
                     _, pe_decay_flag, pe_decay_time = bt.decay_check_single_leg(start_dt, end_dt, pe_scrip, decay_price=pe_price, from_candle_close=from_candle_close, orderside=orderside)
                     
-                    if pe_decay_flag:
+                    if pe_decay_flag and (pe_decay_time.time() < still_time):
                         pe_sl_time, pe_mtm_data = bt.sl_check_single_leg(pe_decay_time, end_dt, pe_scrip, o=(None if method == 'CC' else pe_price), sl=sl, orderside=orderside, from_candle_close=from_candle_close, per_minute_mtm=True)
                         pe_mtm_data = set_pm_time_index(pe_mtm_data, time_index)
                         pe_re_mtm_data += pe_mtm_data
@@ -118,7 +121,7 @@ def NRE_CC_per_minute_mtm(bt, start_time, end_time, orderside, method, sl, om, s
                     pe_decay_flag = True
                     pe_scrip, pe_price, future_price, pe_decay_time = bt.get_strike(start_dt, end_dt, target=pe_price, only='PE')
                     
-                    if pe_decay_time is not None:
+                    if pe_decay_time is not None and (pe_decay_time.time() < still_time):
                         pe_sl_time, pe_mtm_data = bt.sl_check_single_leg(pe_decay_time, end_dt, pe_scrip, o=(None if method == 'CC' else pe_price), sl=sl, orderside=orderside, from_candle_close=from_candle_close, per_minute_mtm=True)
                         pe_mtm_data = set_pm_time_index(pe_mtm_data, time_index)
                         pe_re_mtm_data += pe_mtm_data
