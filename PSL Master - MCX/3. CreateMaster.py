@@ -82,6 +82,48 @@ fund_use_df = _dtes_df.rename(columns=lambda x: f'{prefix_from_index.get(x, x)} 
     **{'Nearest Fund': daily_fund_nearest.values, 'Equally Fund': daily_fund_equally.values})
 fund_use_df.index.name = 'Date'
 
+# Per-(Index, DTE) intraday schedule: entryTime / MarginUsed / %used
+# Fund (from master_parameter) is split equally across a strategy's entry times.
+_param_details = pd.concat([pd.read_csv(p) for p in glob('parameters/*.csv')], ignore_index=True)
+
+# One table per (Index, DTE): fund is consistent within a DTE so cumulative ends at 100%.
+index_schedules = {}
+for _idx in indices:
+    _strat_rows = master_parameter[
+        (master_parameter.index.get_level_values('Index') == _idx) &
+        (master_parameter.index.get_level_values('Strategy') != _idx)
+    ]
+    for _dte in sorted(_strat_rows.index.get_level_values('dte').unique()):
+        _total = _strat_rows[_strat_rows.index.get_level_values('dte') == _dte]['Fund'].sum()
+        _by_time = {}
+        _params_here = _param_details[(_param_details['index'] == _idx) & (_param_details['dte'] == _dte)]
+        for _code, _g in _params_here.groupby('code'):
+            _fund = master_parameter.loc[(_code, _idx, int(_dte)), 'Fund']
+            if _fund <= 0:
+                continue
+            
+            _first = _g.iloc[0]
+            if pd.notna(_first.get('last_trade_time')):
+                _slots = pd.date_range(
+                    f"2000-01-01 {_first['entry_time']}",
+                    f"2000-01-01 {_first['last_trade_time']}",
+                    freq=str(_first['trade_interval']).lower()
+                ).strftime('%H:%M:%S').tolist()
+            else:
+                _slots = _g['entry_time'].astype(str).tolist()
+                
+            _per = _fund / len(_slots)
+            for _t in _slots:
+                _by_time[_t] = _by_time.get(_t, 0) + _per
+        
+        _times = sorted(_by_time)
+        _cum = pd.Series([_by_time[t] for t in _times]).cumsum()
+        index_schedules[(_idx, int(_dte))] = pd.DataFrame({
+            'entryTime': _times,
+            'MarginUsed': _cum.round().astype(int).values,
+            '%used': (_cum / _total * 100).round(2).values if _total > 0 else [0] * len(_times),
+        })
+
 index_ranges = {}
 for index in indices:
     prefix = prefix_from_index.get(index, index)
@@ -423,6 +465,11 @@ mtm_df.to_excel(writer, sheet_name="MTM")
 mtm_df_nearest_dte.to_excel(writer, sheet_name="MTM Nearest DTE")
 mtm_df_equally.to_excel(writer, sheet_name="MTM Equally")
 fund_use_df.to_excel(writer, sheet_name="FundUse")
+_next_col = 1 + len(fund_use_df.columns) + 1  # index col + data cols + 1 empty separator
+for (_idx, _dte), _table in index_schedules.items():
+    writer.sheets["FundUse"].write(0, _next_col, f"{_idx} {_dte}")
+    _table.to_excel(writer, sheet_name="FundUse", startcol=_next_col, startrow=1, index=False)
+    _next_col += len(_table.columns) + 1
 meta_data_parameter.reset_index().to_excel(writer, sheet_name="MetaDataParameter",index=False)
 master_parameter.reset_index().to_excel(writer, sheet_name="MasterParameter",index=False)
 for parameter_path in natsorted(glob("parameters/*.csv")):
