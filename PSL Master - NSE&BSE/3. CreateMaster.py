@@ -401,6 +401,10 @@ for _strat, _strat_idx, _strat_dte in _strategy_idx:
     _stg_pl_rows.append({'Index': _strat_idx, 'DTE': int(_strat_dte), 'Strategy': _strat,
                          'Point': _mdf_by_date.loc[_active, _col].sum()})
 stg_pl_df = pd.DataFrame(_stg_pl_rows, columns=['Index', 'DTE', 'Strategy', 'Point'])
+stg_pl_df = (stg_pl_df.pivot_table(index=['Index', 'Strategy'], columns='DTE', values='Point', fill_value=0).rename(columns=lambda c: f'DTE {int(c)}').reset_index())
+stg_pl_df.columns.name = None
+_dte_cols = [c for c in stg_pl_df.columns if c.startswith('DTE ')]
+stg_pl_df['Total'] = stg_pl_df[_dte_cols].sum(axis=1)
 
 master_df.set_index(list(master_df.columns[:iCount+2]), inplace=True)
 strategy_wise_dd.set_index(list(strategy_wise_dd.columns[:iCount+2]), inplace=True)
