@@ -115,6 +115,9 @@ for _idx in indices:
             _per = _fund / len(_slots)
             for _t in _slots:
                 _by_time[_t] = _by_time.get(_t, 0) + _per
+
+        if not _by_time:
+            continue
         
         _times = sorted(_by_time)
         _cum = pd.Series([_by_time[t] for t in _times]).cumsum()
