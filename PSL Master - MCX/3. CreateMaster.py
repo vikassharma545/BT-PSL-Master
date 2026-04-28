@@ -118,7 +118,7 @@ for _idx in indices:
 
         if not _by_time:
             continue
-        
+
         _times = sorted(_by_time)
         _cum = pd.Series([_by_time[t] for t in _times]).cumsum()
         index_schedules[(_idx, int(_dte))] = pd.DataFrame({
@@ -450,6 +450,12 @@ stg_pl_df = (stg_pl_df.pivot_table(index=['Index', 'Strategy'], columns='DTE', v
 stg_pl_df.columns.name = None
 _dte_cols = [c for c in stg_pl_df.columns if c.startswith('DTE ')]
 stg_pl_df['Total'] = stg_pl_df[_dte_cols].sum(axis=1)
+
+# VIX open price per day (added as the last column of the MTM sheet)
+_vix = pd.read_parquet(f"{pickle_path}_indices/INDIAVIX.parquet", columns=['date_time', 'open'])
+_vix['date_time'] = pd.to_datetime(_vix['date_time'])
+_vix_open = _vix.sort_values('date_time').groupby(_vix['date_time'].dt.date)['open'].first()
+mtm_df['VIX'] = mtm_df['Date'].map(_vix_open)
 
 master_df.set_index(list(master_df.columns[:iCount+2]), inplace=True)
 strategy_wise_dd.set_index(list(strategy_wise_dd.columns[:iCount+2]), inplace=True)
