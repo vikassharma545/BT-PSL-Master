@@ -1,0 +1,11 @@
+code,index,dte,entry_time,exit_time,last_trade_time,trade_interval,orderside,sl,intra_sl,om,re_entries
+SRE_1,SENSEX,1,09:20:00,10:35:00,10:00:00,600min,sell,300,sl+100,0,0
+SRE_2,SENSEX,1,10:40:00,11:55:00,10:00:00,600min,sell,300,sl+100,0,0
+SRE_3,SENSEX,1,12:00:00,13:15:00,10:00:00,600min,sell,300,sl+100,0,0
+SRE_4,SENSEX,1,13:20:00,14:35:00,10:00:00,600min,sell,300,sl+100,0,0
+SRE_5,SENSEX,1,14:40:00,15:25:00,10:00:00,600min,sell,300,sl+100,0,0
+SRE_1,NIFTY,1,09:20:00,10:35:00,10:00:00,600min,sell,300,sl+100,0,0
+SRE_2,NIFTY,1,10:40:00,11:55:00,10:00:00,600min,sell,300,sl+100,0,0
+SRE_3,NIFTY,1,12:00:00,13:15:00,10:00:00,600min,sell,300,sl+100,0,0
+SRE_4,NIFTY,1,13:20:00,14:35:00,10:00:00,600min,sell,300,sl+100,0,0
+SRE_5,NIFTY,1,14:40:00,15:25:00,10:00:00,600min,sell,300,sl+100,0,0

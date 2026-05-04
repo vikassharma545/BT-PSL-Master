@@ -158,7 +158,7 @@ for tcode in codes:
                 max_re = 7
                 notinal_value = meta_row['Nv']
 
-                log_cols = ('P_Strategy/P_Index/P_StartTime/P_EndTime/P_LastTradeTime/P_TradeInterval/P_OrderSide/P_Method/P_SL/P_OM/P_ReEntries/Date/Day/DTE/Entry.Time/MMPS')
+                log_cols = ('P_Strategy/P_Index/P_StartTime/P_EndTime/P_LastTradeTime/P_TradeInterval/P_OrderSide/P_Method/P_SL/P_OM/P_ReEntries/Date/Day/DTE/Entry.Time/MMPS/')
                 log_time_col = get_pm_time_index(datetime.datetime.now(), start_time, end_time).time
                 log_cols += '/'.join(map(str, log_time_col))
                 log_cols = log_cols.split('/')

@@ -1,0 +1,4 @@
+code,index,dte,entry_time,exit_time,last_trade_time,trade_interval,orderside,method,sl,ce_re_sl,pe_re_sl,ce_re_entries,pe_re_entries,om,till_time,decay,orderside_B120,method_B120,sl_B120,ut_sl_B120,om_B120
+NRE_REUSE_B120_1,NIFTY,1,09:15:00,15:26:00,11:50:00,5min,sell,HL,15,sl+0,sl+0,2,2,0.2,11:59:00,70,sell,HL,25,50,0.2
+NRE_REUSE_B120_2,NIFTY,2,09:15:00,15:26:00,11:50:00,5min,sell,HL,25,sl+0,sl+0,2,2,0.2,11:59:00,70,sell,HL,20,50,0.2
+NRE_REUSE_B120_3,NIFTY,3,09:15:00,15:26:00,11:50:00,5min,sell,HL,35,sl+0,sl+0,2,2,0.2,11:59:00,70,sell,HL,25,50,0.2
