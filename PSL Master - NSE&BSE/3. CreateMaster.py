@@ -3,7 +3,7 @@ import os
 import json
 import pandas as pd
 from glob import glob
-from natsort import natsorted
+from natsort import natsorted, index_natsorted
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -26,7 +26,6 @@ def cell_name(row=None, col=None):
     else:
         return col_name, row+1
 
-import json
 with open('config.json', 'r') as file:
     config = json.load(file)
     
@@ -431,25 +430,52 @@ for row in range(1, len(combined_dd.index)+1):
             combined_dd.iat[row-1, col-1] = formula
 
 print("Saving Master File...")
-# StgPL: per (Index, DTE, Strategy) total P&L
-# - Rows come from strategy entries in master_parameter (sentinel index-rows excluded)
-# - For each (Strategy, Index, dte): sum P&L on dates where the index's current DTE matches
+# StgPL: per (Index, DTE, Strategy) total P&L and max drawdown, then pivoted DTE-wise
+# Layout: [Index, Strategy, DTE 1, DD DTE 1, DTE 2, DD DTE 2, ..., Total, Total DD]
+def _max_dd(pnl):
+    """Running drawdown that resets on recovery; returns the most negative value reached."""
+    cum = worst = 0.0
+    for v in pnl:
+        cum = min(0.0, cum + v)
+        if cum < worst:
+            worst = cum
+    return worst
+
 _strategy_idx = master_parameter.index[
     master_parameter.index.get_level_values('Strategy') != master_parameter.index.get_level_values('Index')]
 _mdf_by_date = master_df.set_index(pd.to_datetime(master_df['Date']))
 _stg_pl_rows = []
+_full_series = {}  # (Index, Strategy) -> list of per-dte daily series, for Total / Total DD
 for _strat, _strat_idx, _strat_dte in _strategy_idx:
     _col = f'{prefix_from_index.get(_strat_idx, _strat_idx)} {_strat}'
     if _col not in _mdf_by_date.columns:
         continue
     _active = dte_file.index[dte_file[_strat_idx] == _strat_dte].intersection(_mdf_by_date.index)
+    _series = _mdf_by_date.loc[_active, _col].sort_index()
     _stg_pl_rows.append({'Index': _strat_idx, 'DTE': int(_strat_dte), 'Strategy': _strat,
-                         'Point': _mdf_by_date.loc[_active, _col].sum()})
-stg_pl_df = pd.DataFrame(_stg_pl_rows, columns=['Index', 'DTE', 'Strategy', 'Point'])
-stg_pl_df = (stg_pl_df.pivot_table(index=['Index', 'Strategy'], columns='DTE', values='Point', fill_value=0).rename(columns=lambda c: f'DTE {int(c)}').reset_index())
-stg_pl_df.columns.name = None
-_dte_cols = [c for c in stg_pl_df.columns if c.startswith('DTE ')]
-stg_pl_df['Total'] = stg_pl_df[_dte_cols].sum(axis=1)
+                         'Point': _series.sum(), 'DD': _max_dd(_series)})
+    _full_series.setdefault((_strat_idx, _strat), []).append(_series)
+
+_long = pd.DataFrame(_stg_pl_rows, columns=['Index', 'DTE', 'Strategy', 'Point', 'DD'])
+_totals = {k: (lambda s: (s.sum(), _max_dd(s)))(pd.concat(v).sort_index()) for k, v in _full_series.items()}
+
+# One table per index: Strategy + interleaved (DTE n / DD DTE n) + Total / Total DD
+stg_pl_tables = {}
+for _idx in indices:
+    _idx_long = _long[_long['Index'] == _idx]
+    if _idx_long.empty:
+        continue
+    _pt = _idx_long.pivot_table(index='Strategy', columns='DTE', values='Point', fill_value=0)
+    _dd = _idx_long.pivot_table(index='Strategy', columns='DTE', values='DD', fill_value=0)
+    _t = pd.DataFrame(index=_pt.index)
+    for _d in sorted(_pt.columns):
+        _t[f'DTE {int(_d)}'] = _pt[_d]
+        _t[f'DD DTE {int(_d)}'] = _dd[_d]
+    _t['Total'] = [_totals.get((_idx, s), (0, 0))[0] for s in _t.index]
+    _t['Total DD'] = [_totals.get((_idx, s), (0, 0))[1] for s in _t.index]
+    _t = _t.reset_index()
+    _t = _t.iloc[index_natsorted(_t['Strategy'])].reset_index(drop=True)
+    stg_pl_tables[_idx] = _t
 
 # VIX open price per day (added as the last column of the MTM sheet)
 _vix_path = f"{pickle_path}_indices/INDIAVIX.parquet"
@@ -471,7 +497,15 @@ combined_dd.set_index("Date", inplace=True)
 
 writer = pd.ExcelWriter("Master File.xlsx", engine="xlsxwriter")
 master_df.to_excel(writer, sheet_name="PL")
-stg_pl_df.to_excel(writer, sheet_name="StgPL", index=False)
+# StgPL: one table per index, side by side, separated by an empty column; index name labels above each table
+_next_col = 0
+for _idx in indices:
+    if _idx not in stg_pl_tables:
+        continue
+    _t = stg_pl_tables[_idx]
+    _t.to_excel(writer, sheet_name="StgPL", startcol=_next_col, startrow=1, index=False)
+    writer.sheets["StgPL"].write(0, _next_col, _idx)
+    _next_col += len(_t.columns) + 1
 sl_times_df.to_excel(writer, sheet_name='Exit Times')
 strategy_wise_dd.to_excel(writer, sheet_name='StgWiseDD')
 combined_dd.to_excel(writer, sheet_name='CombinedDD')
