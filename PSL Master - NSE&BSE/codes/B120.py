@@ -79,24 +79,24 @@ def b120_per_minute_mtm(bt, start_time, end_time, orderside, method, sl, ut_sl, 
 
         if ce_sl_time < pe_sl_time:
             ut = 'PE'
-            pe_mtm_data = pe_mtm_data[pe_mtm_data.index <= ce_sl_time]
             
             ut_sl_price = pe_price if str(ut_sl) == 'TTC' else None
             ut_open, _, _, _, _, ut_sl_time, ut_mtm_data = bt.sl_check_single_leg(ce_sl_time, end_dt, pe_scrip, sl=ut_sl, sl_price=ut_sl_price, with_ohlc=True, pl_with_slipage=False, orderside=orderside, from_candle_close=from_candle_close, per_minute_mtm=True)
 
             if ut_open:
+                pe_mtm_data = pe_mtm_data[pe_mtm_data.index <= (ut_mtm_data.index[0] - datetime.timedelta(minutes=1))]
                 if (str(ut_sl) == 'TTC') and (ut_open > ut_sl_price):
                     ut_sl_price = pe_sl_price
                     _, _, _, _, _, ut_sl_time, ut_mtm_data = bt.sl_check_single_leg(ce_sl_time, end_dt, pe_scrip, sl=ut_sl, sl_price=ut_sl_price, with_ohlc=True, pl_with_slipage=False, orderside=orderside, from_candle_close=from_candle_close, per_minute_mtm=True)
 
         elif pe_sl_time < ce_sl_time:
             ut = 'CE'
-            ce_mtm_data = ce_mtm_data[ce_mtm_data.index <= pe_sl_time]
             
             ut_sl_price = ce_price if str(ut_sl) == 'TTC' else None
             ut_open, _, _, _, _, ut_sl_time, ut_mtm_data = bt.sl_check_single_leg(pe_sl_time, end_dt, ce_scrip, sl=ut_sl, sl_price=ut_sl_price, with_ohlc=True, pl_with_slipage=False, orderside=orderside, from_candle_close=from_candle_close, per_minute_mtm=True)
 
             if ut_open:
+                ce_mtm_data = ce_mtm_data[ce_mtm_data.index <= (ut_mtm_data.index[0] - datetime.timedelta(minutes=1))]
                 if (str(ut_sl) == 'TTC') and (ut_open > ut_sl_price):
                     ut_sl_price = ce_sl_price
                     _, _, _, _, _, ut_sl_time, ut_mtm_data = bt.sl_check_single_leg(pe_sl_time, end_dt, ce_scrip, sl=ut_sl, sl_price=ut_sl_price, with_ohlc=True, pl_with_slipage=False, orderside=orderside, from_candle_close=from_candle_close, per_minute_mtm=True)

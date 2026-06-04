@@ -1,0 +1,3 @@
+code,index,dte,entry_time,exit_time,orderside,method,lots
+B120_Dhurandhar_1,NIFTY,1,09:15:00,15:29:00,SELL,HL,30
+B120_Dhurandhar_1,SENSEX,1,09:15:00,15:29:00,SELL,HL,30

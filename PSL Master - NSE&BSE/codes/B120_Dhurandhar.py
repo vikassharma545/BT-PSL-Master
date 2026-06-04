@@ -4,9 +4,10 @@ with open('../config.json', 'r') as file:
     
 pickle_path = config['pickle_path']
 
-code = 'B120'
+code = 'B120_Dhurandhar'
 parameter_path = f'../parameters/Parameter_{code}.csv'
 meta_data_path = f"../Parameter_MetaData.csv"
+queue_excel_path = f"C:/Users/pgc_0/OneDrive/Desktop/pgcbacktest/INTRADAY CODES/B120_D_PSL/Dhurandhar.xlsx"
 
 import os
 import shutil
@@ -31,32 +32,36 @@ def get_parameter_data(code, parameter_path):
         parameter[['last_trade_time', 'trade_interval']] = parameter['last_trade_time_and_interval'].str.strip().str.split(',', expand=True)
         parameter['last_trade_time'] = pd.to_datetime(parameter['last_trade_time'], format='%H:%M:%S').dt.time
 
-    if code.startswith("B120") and code.endswith("PSL"):
-        
-        # filter - entry < (exit_time|endtime - 5min)
-        parameter = parameter[pd.to_datetime(parameter['entry_time'], format='%H:%M:%S').dt.time < (pd.to_datetime(parameter['last_trade_time'], format='%H:%M:%S')-pd.Timedelta(minutes=5)).dt.time]
-        parameter = parameter[pd.to_datetime(parameter['last_trade_time'], format='%H:%M:%S').dt.time < (pd.to_datetime(parameter['exit_time'], format='%H:%M:%S')-pd.Timedelta(minutes=5)).dt.time]
-        
-        # filter - where sl = 0
-        parameter.loc[parameter['sl'] == 0, 'ut_sl'] = 0
-        parameter.loc[parameter['sl'] == 0, 'method'] = 'HL'
-        
-        parameter['ut_sl'] = parameter['ut_sl'].astype(str).str.upper()
-        parameter['trade_interval'] = parameter['trade_interval'].str.upper()
-        parameter['orderside'] = parameter['orderside'].str.upper()
-        parameter['method'] = parameter['method'].str.upper()
-        
-        if code == 'B120_SI_PSL':
-            parameter['std_indicator'] = parameter['std_indicator'].str.upper()
-
     parameter.drop_duplicates(inplace=True, ignore_index=True)
     return parameter, len(parameter)
 
 try:
     parameter, parameter_len = get_parameter_data(f"{code}_PSL", parameter_path)
     meta_data, meta_row_nos = get_meta_data(code, meta_data_path)
+    queue_excel = pd.read_excel(queue_excel_path, None)
 except Exception as e:
     input(str(e))
+
+def xlsx_to_dict(queue_excel):
+    result = {}
+    for sheet, df in queue_excel.items():
+        groups = {}
+        for g in range(df.shape[1] // 4):
+            sub = df.iloc[:, g*4:g*4+4].dropna(how="all")
+            sub.columns = ["entry", "om", "sl", "ut_sl"]
+            rows = {}
+            for i, r in enumerate(sub.to_dict("records"), 1):
+                rows[i] = {
+                    "entry": r["entry"],
+                    "sl":    float(r["sl"]),
+                    "ut_sl": r["ut_sl"],
+                    "om":    r["om"],
+                }
+            groups[f"group_{g+1}"] = rows
+        result[sheet] = groups
+    return result
+
+queue_groups = xlsx_to_dict(queue_excel)
 
 def b120_per_minute_mtm(bt, start_time, end_time, orderside, method, sl, ut_sl, om, seperate=False):
     try:
@@ -65,7 +70,7 @@ def b120_per_minute_mtm(bt, start_time, end_time, orderside, method, sl, ut_sl, 
         end_dt_1m = end_dt + datetime.timedelta(minutes=10)
 
         ce_scrip, pe_scrip, ce_price, pe_price, future_price, start_dt = bt.get_strike(start_dt, end_dt, om=om)
-        if ce_scrip is None: return None
+        if ce_scrip is None: None
 
         from_candle_close = True if method == 'CC' else False
 
@@ -74,10 +79,10 @@ def b120_per_minute_mtm(bt, start_time, end_time, orderside, method, sl, ut_sl, 
         _, _, _, _, pe_sl_price, pe_sl_time, pe_mtm_data = bt.sl_check_single_leg(start_dt, end_dt, pe_scrip, sl=sl, with_ohlc=True, orderside=orderside, from_candle_close=from_candle_close, per_minute_mtm=True)
         ce_sl_time = ce_sl_time if ce_sl_time else end_dt_1m
         pe_sl_time = pe_sl_time if pe_sl_time else end_dt_1m
-        
         ut_sl = ut_sl if str(ut_sl) == 'TTC' else float(ut_sl)
-
+        
         if ce_sl_time < pe_sl_time:
+            pe_sl_time = end_dt_1m
             ut = 'PE'
             
             ut_sl_price = pe_price if str(ut_sl) == 'TTC' else None
@@ -90,6 +95,7 @@ def b120_per_minute_mtm(bt, start_time, end_time, orderside, method, sl, ut_sl, 
                     _, _, _, _, _, ut_sl_time, ut_mtm_data = bt.sl_check_single_leg(ce_sl_time, end_dt, pe_scrip, sl=ut_sl, sl_price=ut_sl_price, with_ohlc=True, pl_with_slipage=False, orderside=orderside, from_candle_close=from_candle_close, per_minute_mtm=True)
 
         elif pe_sl_time < ce_sl_time:
+            ce_sl_time = end_dt_1m
             ut = 'CE'
             
             ut_sl_price = ce_price if str(ut_sl) == 'TTC' else None
@@ -101,49 +107,78 @@ def b120_per_minute_mtm(bt, start_time, end_time, orderside, method, sl, ut_sl, 
                     ut_sl_price = ce_sl_price
                     _, _, _, _, _, ut_sl_time, ut_mtm_data = bt.sl_check_single_leg(pe_sl_time, end_dt, ce_scrip, sl=ut_sl, sl_price=ut_sl_price, with_ohlc=True, pl_with_slipage=False, orderside=orderside, from_candle_close=from_candle_close, per_minute_mtm=True)
         else:
-            ut = ''
+            ut, ut_open = '', ''
             ut_sl_time, ut_mtm_data = '', pd.Series()
+            
+        if ut_open:
+            b120_sl_time = ut_sl_time
+        else:
+            b120_sl_time = max(ce_sl_time, pe_sl_time)
+
+        b120_sl_time = '' if b120_sl_time == end_dt_1m else b120_sl_time
 
         if seperate:
-            return ce_mtm_data, pe_mtm_data, ut, ut_mtm_data
+            return b120_sl_time, ce_mtm_data, pe_mtm_data, ut, ut_mtm_data
         else:
             ce_mtm_data = set_pm_time_index(ce_mtm_data, time_index)
             pe_mtm_data = set_pm_time_index(pe_mtm_data, time_index)
             
             if ut:
                 ut_mtm_data = set_pm_time_index(ut_mtm_data, time_index)
-                return ce_mtm_data+pe_mtm_data+ut_mtm_data
+                return b120_sl_time, ce_mtm_data+pe_mtm_data+ut_mtm_data
             else:
-                return ce_mtm_data+pe_mtm_data
+                return b120_sl_time, ce_mtm_data+pe_mtm_data
     
     except Exception as e:
         print(e, [bt.index, bt.current_date, start_time, end_time, orderside, method, sl, ut_sl, om])
-        return
+        return None
 
-def b120_PSL(bt, start_time, end_time, last_trade_time, trade_interval, orderside, method, sl, ut_sl, om):
+def b120_d(bt, start_time, end_time, orderside, method, lots, index_queue_groups):
     try:
-        start_dt = datetime.datetime.combine(bt.current_date, start_time)
-        end_dt = datetime.datetime.combine(bt.current_date, end_time)
-        last_trade_dt = datetime.datetime.combine(bt.current_date, last_trade_time)
+        live_trades = {}
+        current_trade = 0
+        max_trade = lots
+        total_trades = []
+        current_time = start_time
+        per_minute_mtm = set_pm_time_index(pd.Series(), time_index)
 
-        entry_time = start_dt
-        time_range = pd.date_range(start_dt, last_trade_dt, freq=trade_interval.lower()).time
-        
-        per_minute_trades = [b120_per_minute_mtm(bt, re_time, end_time, orderside, method, sl, ut_sl, om) for re_time in time_range]
-        per_minute_trades = [t for t in per_minute_trades if t is not None]
-        
-        if per_minute_trades:
-            per_minute_mtm = np.sum(per_minute_trades, axis=0)
+        entry_time = start_time
+        future_price = bt.future_data['close'].iloc[0]
+
+        logs = [code, bt.index, start_time, end_time, orderside, method, lots, bt.current_date.date(), bt.current_date.day_name(), bt.dte, entry_time, future_price]
+
+        for group, params in index_queue_groups.items():
+
+            for idx, param in params.items():
+
+                current_time = param['entry']
+
+                if current_trade < max_trade:
+                    b120_output = b120_per_minute_mtm(bt, param['entry'], end_time, orderside, method, param['sl'], param['ut_sl'], param['om'])
+                    if b120_output:
+                        live_trades[f"{group}-{idx}"] = {
+                            'exit': b120_output[0],
+                            'mtm': b120_output[1]
+                        }
+                        total_trades.append(live_trades[f"{group}-{idx}"]['mtm'])
+                        current_trade += 1
+
+            stop_out_trades = {k: v for k, v in live_trades.items() if v['exit'] and v['exit'].time() < current_time}
+            live_trades = {k: v for k, v in live_trades.items() if not v['exit'] or v['exit'].time() >= current_time}
+            current_trade = len(live_trades)
+
+        if total_trades:
+            per_minute_mtm = np.sum(total_trades, axis=0)
             mtm_time_list = list(per_minute_mtm)
 
-            total_minutes = len(time_range)
+            total_minutes = lots
             future_price = bt.future_data['close'].iloc[0]
             margin_per_share = future_price * (notinal_value / 100)
             minute_margin_per_share = int(total_minutes*margin_per_share)
 
-            return [tcode, bt.index, start_time, end_time, last_trade_time, trade_interval, orderside, method, sl, cv(ut_sl), om, bt.current_date.date(), bt.current_date.day_name(), bt.dte, entry_time.time(), minute_margin_per_share] + mtm_time_list
+            return [tcode, bt.index, start_time, end_time, orderside, method, lots, bt.current_date.date(), bt.current_date.day_name(), bt.dte, entry_time, minute_margin_per_share] + mtm_time_list
     except Exception as e:
-        print(e, [bt.index, bt.current_date, start_time, end_time, last_trade_time, trade_interval, orderside, method, sl, ut_sl, om])
+        print(e, [bt.index, bt.current_date, start_time, end_time, orderside, method, lots])
         return
 
 codes = list(parameter['code'].unique())
@@ -164,12 +199,12 @@ for tcode in codes:
                 meta_row = meta_data.iloc[row_idx]
                 index, dte, from_date, to_date, start_time, end_time, date_lists = get_meta_row_data(meta_row, pickle_path)
                 notinal_value = meta_row['Nv']
-                
-                log_cols = ('P_Strategy/P_Index/P_StartTime/P_EndTime/P_LastTradeTime/P_TradeInterval/P_OrderSide/P_Method/P_SL/P_UTSL/P_OM/Date/Day/DTE/Entry.Time/MMPS/')
+
+                log_cols = ('P_Strategy/P_Index/P_StartTime/P_EndTime/P_OrderSide/P_Method/P_Lots/Date/Day/DTE/EntryTime/MMPS/')
                 log_time_col = get_pm_time_index(datetime.datetime.now(), start_time, end_time).time
                 log_cols += '/'.join(map(str, log_time_col))
                 log_cols = log_cols.split('/')
-
+                
                 for current_date in date_lists:
 
                     file_name = f"{index} {current_date.date()} {tcode}"
@@ -193,19 +228,20 @@ for tcode in codes:
 
                         t1 = datetime.datetime.now()
                         print(f"Row-{row_idx} | File-{file_name} | Total-{parameter_len}")
-                        
+
                         bt = IntradayBacktest(pickle_path, index, current_date, dte, start_time, end_time)
                         time_index = get_pm_time_index(bt.current_date, bt.meta_start_time, bt.meta_end_time)
                         future_price = bt.future_data['close'].iloc[0]
+                        index_queue_groups = queue_groups[index]
                         
                         for idx, i in enumerate(range(0, parameter_len, chunk_size), start=1):
                             chunck_file_name = f"{output_csv_path}{file_name} No-{idx}.parquet"
                             print(chunck_file_name)
-                            
-                            chunk_parameter = tparameter.iloc[i:i+chunk_size]
-                            chunk = [b120_PSL(bt, row['entry_time'], row['exit_time'], row['last_trade_time'], row['trade_interval'], row['orderside'], row['method'], row['sl'], row['ut_sl'], row['om']) for idx, row in tqdm(chunk_parameter.iterrows(), total=len(chunk_parameter), colour='GREEN')]
-                            save_chunk_data(chunk, log_cols, chunck_file_name)
 
+                            chunk_parameter = tparameter.iloc[i:i+chunk_size]
+                            chunk = [b120_d(bt, row.entry_time, row.exit_time, row.orderside, row.method, row.lots, index_queue_groups) for row in tqdm(chunk_parameter.itertuples(), total=len(chunk_parameter), colour='GREEN')]
+                            save_chunk_data(chunk, log_cols, chunck_file_name)
+                        
                         t2 = datetime.datetime.now()
                         print(t2-t1)
                         
