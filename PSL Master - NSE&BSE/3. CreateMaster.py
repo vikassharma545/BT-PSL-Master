@@ -43,6 +43,9 @@ prefix_from_index = {'BANKNIFTY': 'BN', 'NIFTY': 'NF', 'FINNIFTY': 'FN', 'MIDCPN
 
 master_df = pd.read_excel('CombinePSL.xlsx')
 master_df['Date'] = pd.to_datetime(master_df['Date'], dayfirst=False).dt.date
+# step 2 writes a missing DTE as 0; blank it so MIN() in 'MTM Nearest DTE' skips an index that isn't trading
+_dte_cols = [c for c in master_df.columns if str(c).endswith(' DTE')]
+master_df[_dte_cols] = master_df[_dte_cols].replace(0, float('nan'))
 master_columns = list(master_df.columns)
 
 print("Creating MTM Sheet...")
@@ -129,7 +132,8 @@ for _idx in indices:
 index_ranges = {}
 for index in indices:
     prefix = prefix_from_index.get(index, index)
-    columns = [c for c in master_columns if c.startswith(prefix) and not c.endswith("DTE")]
+    # trailing space: "CRUDEOIL" must not match "CRUDEOILM ..." (same for GOLD/GOLDM, SILVER/SILVERM)
+    columns = [c for c in master_columns if c.startswith(prefix + " ") and not c.endswith("DTE")]
     if columns:
         first, last = master_columns.index(columns[0]), master_columns.index(columns[-1])
         index_ranges[index] = {"first":first+1, "last":last+1}
@@ -290,7 +294,8 @@ for row in range(1, len(mtm_df_nearest_dte.index)-2):
             
             c, r = cell_name(row, mtm_df_nearest_dte.columns.get_loc(indices[0]) + 1)
             c2, r2 = cell_name(row, mtm_df_nearest_dte.columns.get_loc(indices[-1]) + 1)
-            formula = f"=IF(MATCH(MIN(PL!{c}{r}:{c2}{r2}),PL!{c}{r}:{c2}{r2}, 0)={idx}, {old_formula}, 0)"
+            # IFERROR: on a day where every DTE is blank, MATCH has nothing to find
+            formula = f"=IFERROR(IF(MATCH(MIN(PL!{c}{r}:{c2}{r2}),PL!{c}{r}:{c2}{r2}, 0)={idx}, {old_formula}, 0), 0)"
             
             mtm_df_nearest_dte.iloc[row-1, col-1] = formula
 
@@ -302,7 +307,7 @@ for row in range(1, len(mtm_df_nearest_dte.index)-2):
 
             c, r = cell_name(row, mtm_df_nearest_dte.columns.get_loc(indices[0]) + 1)
             c2, r2 = cell_name(row, mtm_df_nearest_dte.columns.get_loc(indices[-1]) + 1)
-            formula = f"=IF(MATCH(MIN(PL!{c}{r}:{c2}{r2}),PL!{c}{r}:{c2}{r2}, 0)={idx_of_index}, {old_formula}, 0)"
+            formula = f"=IFERROR(IF(MATCH(MIN(PL!{c}{r}:{c2}{r2}),PL!{c}{r}:{c2}{r2}, 0)={idx_of_index}, {old_formula}, 0), 0)"
 
             mtm_df_nearest_dte.iloc[row-1, col-1] = formula
 
