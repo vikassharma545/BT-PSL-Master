@@ -71,8 +71,9 @@ def DT_per_minute_mtm(bt, start_time, end_time, orderside, method, decay, sl, om
         pe_open, pe_high, pe_low, pe_close, pe_decay_price, pe_decay_flag, pe_decay_time = bt.decay_check_single_leg(start_dt, end_dt, pe_scrip, decay=decay, from_candle_close=from_candle_close, orderside=orderside, with_ohlc=True)
 
         # check sl
-        ce_sl_time, ce_mtm_data = bt.sl_check_single_leg(ce_decay_time, end_dt, ce_scrip, o=(None if method == 'CC' else ce_decay_price), sl=sl, orderside=orderside, from_candle_close=from_candle_close, per_minute_mtm=True)
-        pe_sl_time, pe_mtm_data = bt.sl_check_single_leg(pe_decay_time, end_dt, pe_scrip, o=(None if method == 'CC' else pe_decay_price), sl=sl, orderside=orderside, from_candle_close=from_candle_close, per_minute_mtm=True)
+        no_trade = ('', pd.Series(dtype=float))
+        ce_sl_time, ce_mtm_data = bt.sl_check_single_leg(ce_decay_time, end_dt, ce_scrip, o=(None if method == 'CC' else ce_decay_price), sl=sl, orderside=orderside, from_candle_close=from_candle_close, per_minute_mtm=True) if ce_decay_flag else no_trade
+        pe_sl_time, pe_mtm_data = bt.sl_check_single_leg(pe_decay_time, end_dt, pe_scrip, o=(None if method == 'CC' else pe_decay_price), sl=sl, orderside=orderside, from_candle_close=from_candle_close, per_minute_mtm=True) if pe_decay_flag else no_trade
 
         ce_decay_time = ce_decay_time if ce_decay_time else end_dt_1m
         pe_decay_time = pe_decay_time if pe_decay_time else end_dt_1m

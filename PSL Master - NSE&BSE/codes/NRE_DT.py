@@ -80,7 +80,7 @@ def NRE_per_minute_mtm(bt, start_time, end_time, orderside, method, sl, ratio, o
                 _, ce_decay_flag, ce_decay_time = bt.decay_check_single_leg(start_dt, end_dt, ce_scrip, decay_price=ce_entry_price, from_candle_close=from_candle_close, orderside=orderside)
 
                 if ce_decay_flag:
-                    ce_sl_time, ce_mtm_data = bt.sl_check_single_leg_with_sl_trail(ce_decay_time, end_dt, ce_scrip, o=(None if method == 'CC' else ce_entry_price), sl=sl, trail_type='RATIO', trail_gap=ratio, orderside=orderside, from_candle_close=from_candle_close, per_minute_mtm=True)
+                    ce_sl_time, ce_mtm_data = bt.sl_check_single_leg_with_sl_trail(ce_decay_time, end_dt, ce_scrip, o=(None if method == 'CC' or (ce_price <= ce_entry_price if orderside == 'SELL' else ce_price >= ce_entry_price) else ce_entry_price), sl=sl, trail_type='RATIO', trail_gap=ratio, orderside=orderside, from_candle_close=from_candle_close, per_minute_mtm=True)
                     ce_mtm_data = set_pm_time_index(ce_mtm_data, time_index)
                     ce_re_mtm_data += ce_mtm_data
                 else:
@@ -97,7 +97,7 @@ def NRE_per_minute_mtm(bt, start_time, end_time, orderside, method, sl, ratio, o
                 _, pe_decay_flag, pe_decay_time = bt.decay_check_single_leg(start_dt, end_dt, pe_scrip, decay_price=pe_entry_price, from_candle_close=from_candle_close, orderside=orderside)
 
                 if pe_decay_flag:
-                    pe_sl_time, pe_mtm_data = bt.sl_check_single_leg_with_sl_trail(pe_decay_time, end_dt, pe_scrip, o=(None if method == 'CC' else pe_entry_price), sl=sl, trail_type='RATIO', trail_gap=ratio, orderside=orderside, from_candle_close=from_candle_close, per_minute_mtm=True)
+                    pe_sl_time, pe_mtm_data = bt.sl_check_single_leg_with_sl_trail(pe_decay_time, end_dt, pe_scrip, o=(None if method == 'CC' or (pe_price <= pe_entry_price if orderside == 'SELL' else pe_price >= pe_entry_price) else pe_entry_price), sl=sl, trail_type='RATIO', trail_gap=ratio, orderside=orderside, from_candle_close=from_candle_close, per_minute_mtm=True)
                     pe_mtm_data = set_pm_time_index(pe_mtm_data, time_index)
                     pe_re_mtm_data += pe_mtm_data
                 else:
