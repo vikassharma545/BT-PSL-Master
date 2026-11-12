@@ -67,7 +67,7 @@ max_margin = master_parameter.loc[indices]['Fund'].max()
 index_ranges = {}
 for index in indices:
     prefix = prefix_from_index.get(index, index)
-    columns = [c for c in master_columns if c.startswith(prefix) and not c.endswith("DTE")]
+    columns = [c for c in master_columns if c.startswith(prefix + " ") and not c.endswith("DTE")]
     if columns:
         first, last = master_columns.index(columns[0]), master_columns.index(columns[-1])
         index_ranges[index] = {"first":first+1, "last":last+1}
@@ -229,9 +229,10 @@ for index in indices:
             dfs_to_concat = []
             for f in sl_time_csvs:
                 df = pd.read_csv(f)
-                df['Start.Date'] = pd.to_datetime(df['Start.Date'])
-                df = df.set_index('Start.Date')
-                df.drop(columns=['Start.DTE','End.DTE','End.Date'], inplace=True)
+                # step 2 books the week's P&L on End.Date, so the stop time goes on that row too
+                df['End.Date'] = pd.to_datetime(df['End.Date'])
+                df = df.set_index('End.Date')
+                df.drop(columns=['Start.DTE','End.DTE','Start.Date'], inplace=True)
                 dfs_to_concat.append(df)
             
             df = pd.concat(dfs_to_concat, axis=0)
@@ -264,8 +265,8 @@ for row in range(1, len(strategy_wise_dd.index)+1):
             
 print('Combined DD')
 combined_dd = master_df.copy()
-combined_dd = master_df.iloc[:,:4]
-stg_columns = master_columns[4:]
+combined_dd = master_df.iloc[:,:iCount+2]
+stg_columns = master_columns[iCount+2:]
 unique_stg = natsorted(set([c.rsplit('_', maxsplit=1)[0] for c in stg_columns]))
 
 for stg in unique_stg:

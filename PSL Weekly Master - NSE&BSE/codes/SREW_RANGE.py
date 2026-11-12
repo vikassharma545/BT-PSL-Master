@@ -8,7 +8,6 @@ code = 'SREW_RANGE'
 parameter_path = f'../parameters/Parameter_{code}.csv'
 meta_data_path = f"../Parameter_MetaData.csv"
 
-import shutil
 from pgcbacktest.BtParameters import *
 from pgcbacktest.BacktestOptions import *
 
@@ -138,8 +137,8 @@ def SREW_RANGE_PSL(bt, start_time, end_time, last_trade_time, trade_interval, or
 codes = list(parameter['code'].unique())
 for tcode in codes:
 
+    # no wipe here: Run Code.py starts several copies, each would delete the others' finished weeks. Clear old output with _ClearOutput.py
     output_csv_path = f'../backend_files/codes_output/{tcode}_output/'
-    shutil.rmtree(output_csv_path, ignore_errors=True)
     os.makedirs(output_csv_path, exist_ok=True)
 
     for row_idx in range(len(meta_data)):
@@ -160,11 +159,14 @@ for tcode in codes:
                 log_colsb = ('P_Strategy/P_Index/P_StartTime/P_EndTime/P_LastTradeTime/P_TradeInterval/P_OrderSide/P_SL/P_intraSL/P_OM/P_FixedOrDynamic/P_NormalOrCut/P_SyntheticFuture/P_Dte1Re/P_Dte2Re/P_Dte3Re/P_Dte4Re/P_Dte5Re/Start.Date/End.Date/Start.DTE/End.DTE/DayCount/Entry.Time/MMPS/')
 
                 for week_dates in week_lists:
+                    # to_date can cut the last week before its expiry; that week never reaches to_dte, so it has no exit day
+                    if int(dte_file.loc[week_dates[-1], index]) > to_dte: continue
                     from_date = week_dates[0]
                     to_date = week_dates[-1]
 
                     file_name = f"{index} {week_dates[0].date()} {week_dates[-1].date()} {from_dte}-{to_dte} {tcode}"
-                    if not is_file_exists(output_csv_path, file_name, parameter_len):
+                    with claim_date(output_csv_path, file_name, parameter_len) as claimed:
+                        if not claimed: continue
 
                         t1 = datetime.datetime.now()
                         print(f"Row-{row_idx} | File-{file_name} | Total-{parameter_len}")
